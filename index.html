@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=1280">
-    <title>Typing Battle - Pro</title>
+    <title>AI Typing Battle - Pro</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -11,16 +11,17 @@
         body { background: var(--bg); color: #eee; font-family: 'Consolas', monospace; margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         
         #lobby { position: fixed; inset: 0; background: #111; z-index: 200; display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 20px; }
-        .lobby-box { background: var(--panel); padding: 25px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 420px; margin-bottom: 20px; }
+        .lobby-box { background: var(--panel); padding: 25px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 450px; margin-bottom: 20px; }
         input[type="text"] { padding: 12px; font-size: 1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 85%; margin-bottom: 12px; outline: none; }
         input[type="text"]:disabled { opacity: 0.5; cursor: not-allowed; }
         
-        .btn { padding: 12px 20px; font-size: 0.9rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 5px; transition: 0.2s; min-width: 120px; }
+        .btn-group { display: flex; justify-content: center; gap: 8px; flex-wrap: nowrap; }
+        .btn { padding: 12px 15px; font-size: 0.85rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; transition: 0.2s; white-space: nowrap; flex: 1; }
         .btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .btn-pvp { background: var(--primary); color: #000; }
         .btn-solo { background: #444; color: #fff; }
         .btn-cancel { background: var(--error); color: #fff; display: none; }
-        .btn-back { background: transparent; color: #888; border: 1px solid #444; margin-top: 15px; }
+        .btn-back { background: transparent; color: #888; border: 1px solid #444; margin-top: 15px; width: 200px; }
 
         #ranking-area { display: flex; width: 900px; gap: 15px; justify-content: center; padding-bottom: 40px; }
         .ranking-board { flex: 1; background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid #444; min-height: 400px; }
@@ -56,7 +57,7 @@
         <p style="color: #ffd700; font-weight: bold; margin: 10px 0;">Your Rate: <span id="my-rate-val">0</span></p>
         <input type="text" id="player-name" placeholder="YOUR NAME" maxlength="10">
         <input type="text" id="room-id-input" placeholder="ROOM ID (Optional)" maxlength="15">
-        <div style="display: flex; justify-content: center; gap: 10px;">
+        <div class="btn-group">
             <button id="btn-pvp-start" class="btn btn-pvp" onclick="initPvP()">1v1 ONLINE</button>
             <button id="btn-solo-start" class="btn btn-solo" onclick="initSolo()">SOLO MODE</button>
             <button id="btn-cancel" class="btn btn-cancel" onclick="cancelMatching()">CANCEL</button>
@@ -121,7 +122,6 @@
             const res = await fetch('questions.json?v=' + Date.now());
             questions = await res.json();
         } catch(e) { 
-            // 予備データ
             questions = [{english:"hello world", japanese:"こんにちは"}, {english:"typing game", japanese:"タイピングゲーム"}];
         }
     }
@@ -189,34 +189,26 @@
             roomId = "custom_" + customId;
             handleMatching(roomId);
         } else {
-            // 野良マッチング: Transactionを使用してアトミックに待機室を操作
             const waitRef = db.ref('waiting_room');
             waitRef.transaction(current => {
                 if (current === null) {
-                    // 待機者がいないので自分が登録
                     return { id: "room_" + Date.now(), name: myName, rate: myRate };
-                } else {
-                    // すでに待機者がいるので何もしない（transactionの結果として今の値を取得）
-                    return undefined;
                 }
+                return undefined;
             }, (error, committed, snapshot) => {
                 if (error) {
                     cancelMatching();
                 } else if (committed) {
-                    // 自分が待機者(P1)になった
                     const data = snapshot.val();
                     roomId = data.id;
                     pKey = "p1";
                     db.ref(`rooms/${roomId}/p1`).set({ name: myName, score: 0, rate: myRate, ready: false });
-                    // P2が来るのを監視
                     db.ref(`rooms/${roomId}/p2`).on('value', s => { if(s.exists()) setupMatchUI(); });
                 } else {
-                    // すでに誰かいたので自分はP2として入室
                     const waitData = snapshot.val();
                     roomId = waitData.id;
                     pKey = "p2";
                     db.ref(`rooms/${roomId}/p2`).set({ name: myName, score: 0, rate: myRate, ready: false });
-                    // 待機室を空にする
                     waitRef.remove();
                     setupMatchUI();
                 }
@@ -269,14 +261,13 @@
             if(d){
                 document.getElementById('opp-name').innerText = d.name;
                 document.getElementById('opp-score').innerText = d.score;
-            } else {
-                // 相手が消えたらロビーへ
-                backToLobby();
+            } else if (gameStarted === false) {
+                backToLobby(); // 相手が準備中にいなくなったら戻る
             }
         });
 
         isReady = false;
-        // 10秒放置タイムアウト
+        if(readyTimeout) clearTimeout(readyTimeout);
         readyTimeout = setTimeout(() => {
             if(!isReady) backToLobby();
         }, 10000);
@@ -378,7 +369,6 @@
     function finishGame() {
         if(gameTimer) clearInterval(gameTimer);
         gameStarted = false;
-        // WPM = (打鍵数/5) / (秒/60)
         const finalWPM = parseFloat(((score / 5) / (TIME_LIMIT / 60)).toFixed(1));
 
         if (mode === "pvp") {
@@ -415,7 +405,6 @@
 
                 document.getElementById('res-title').innerText = resTxt;
                 document.getElementById('final-stats').innerHTML = `My Score: ${myS}<br>Opponent: ${oppS}<br>WPM: ${finalWPM}<br>Current Rate: ${myRate}`;
-                db.ref(`rooms/${roomId}`).remove();
             });
         } else {
             document.getElementById('final-stats').innerHTML = `SCORE: ${score}<br>WPM: ${finalWPM}`;
