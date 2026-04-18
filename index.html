@@ -59,7 +59,7 @@
         <div class="btn-group">
             <button id="btn-pvp-start" class="btn btn-pvp" onclick="initPvP()">1v1 ONLINE</button>
             <button id="btn-solo-start" class="btn btn-solo" onclick="initSolo()">SOLO MODE</button>
-            <button id="btn-cancel" class="btn btn-cancel" onclick="cancelMatching()">CANCEL</button>
+            <button id="btn-cancel" class="btn btn-cancel" onclick="backToLobby()">CANCEL</button>
         </div>
         <p id="match-status" style="margin-top:15px; font-size:0.8rem; color:#888; min-height: 1rem;"></p>
     </div>
@@ -151,6 +151,7 @@
         document.getElementById('opp-display').style.display = 'none';
         document.getElementById('target').innerText = "Press Any Key to START";
         isReady = false;
+        gameStarted = false;
     }
 
     function initPvP() {
@@ -224,6 +225,7 @@
                     document.getElementById('opp-name').innerText = d.name;
                     document.getElementById('opp-score').innerText = d.score;
                 } else if(!gameStarted) {
+                    // 相手が退出した場合
                     backToLobby();
                 }
             });
@@ -261,10 +263,12 @@
 
     function startGame() {
         gameStarted = true; score = 0; missCount = 0; charIdx = 0; qIdx = 0;
+        document.getElementById('my-score').innerText = "0";
         questions.sort(()=>Math.random()-0.5);
         render(); 
         updateMissUI();
         let t = TIME_LIMIT;
+        document.getElementById('timer').innerText = t;
         gameTimer = setInterval(() => {
             document.getElementById('timer').innerText = --t;
             if(t <= 0) { clearInterval(gameTimer); finishGame(); }
@@ -272,6 +276,7 @@
     }
 
     function render() {
+        if(!gameStarted) return;
         const q = questions[qIdx];
         if(!q) return;
         document.getElementById('target').innerHTML = q.english.split('').map((c, i) => 
@@ -360,6 +365,7 @@
                 document.getElementById('final-stats').innerHTML = `My Score: ${myS}<br>Opponent: ${oppS}<br>WPM: ${finalWPM}<br>Current Rate: ${myRate}`;
             });
         } else {
+            document.getElementById('res-title').innerText = "FINISH!";
             document.getElementById('final-stats').innerHTML = `SCORE: ${score}<br>WPM: ${finalWPM}`;
             db.ref(`npc_ranking/${myName}`).transaction(c => finalWPM > (c||0) ? finalWPM : c);
         }
@@ -370,11 +376,14 @@
         if(gameTimer) clearInterval(gameTimer);
         if(readyTimeout) clearTimeout(readyTimeout);
         gameStarted = false; score = 0; missCount = 0; isReady = false;
+        
         if(roomId) {
             db.ref(`rooms/${roomId}`).off();
             db.ref(`rooms/${roomId}/${pKey}`).remove();
         }
+        
         cancelMatching();
+        
         document.getElementById('lobby').style.display = 'flex';
         document.getElementById('game-view').style.display = 'none';
         document.getElementById('result-overlay').style.display = 'none';
@@ -382,10 +391,11 @@
     }
 
     function cancelMatching() {
-        if(roomId) db.ref(`rooms/${roomId}/${pKey}`).remove();
+        // waiting_room から自分を削除
         db.ref('waiting_room').once('value', s => {
             if(s.exists() && s.val().name === myName) db.ref('waiting_room').remove();
         });
+        
         roomId = null;
         document.getElementById('btn-pvp-start').disabled = false;
         document.getElementById('btn-solo-start').disabled = false;
