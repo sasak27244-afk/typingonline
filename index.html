@@ -52,7 +52,6 @@
         #trans { color: var(--primary); font-size: 1.5rem; min-height: 1.8rem; margin-bottom: 20px; }
         .current { border-bottom: 5px solid var(--primary); background: rgba(0, 230, 118, 0.1); }
         .correct { color: #555; }
-        .wrong-char { color: var(--error) !important; text-decoration: underline; }
 
         #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.98); flex-direction: column; align-items: center; justify-content: center; z-index: 300; }
         #mobile-input { position: absolute; opacity: 0; pointer-events: none; }
@@ -140,15 +139,15 @@
     }
 
     function updateRanking() {
-        db.ref('rate_ranking').orderByValue().limitToLast(20).once('value', s => {
+        db.ref('rate_ranking').orderByValue().limitToLast(10).once('value', s => {
             let a = []; s.forEach(c => { a.push({n:c.key, v:c.val()}); });
             a.sort((x,y) => y.v - x.v);
-            document.getElementById('rate-list').innerHTML = a.slice(0, 10).map((r,i) => `<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v} pt</span></div>`).join('');
+            document.getElementById('rate-list').innerHTML = a.map((r,i) => `<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v} pt</span></div>`).join('');
         });
-        db.ref('npc_ranking').orderByValue().limitToLast(20).once('value', s => {
+        db.ref('npc_ranking').orderByValue().limitToLast(10).once('value', s => {
             let a = []; s.forEach(c => { a.push({n:c.key, v:c.val()}); });
             a.sort((x,y) => y.v - x.v);
-            document.getElementById('solo-list').innerHTML = a.slice(0, 10).map((r,i) => `<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v} WPM</span></div>`).join('');
+            document.getElementById('solo-list').innerHTML = a.map((r,i) => `<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v} WPM</span></div>`).join('');
         });
     }
 
@@ -172,7 +171,6 @@
         setupUser();
         const customId = document.getElementById('room-id-input').value.trim();
         
-        // マッチング中はソロボタンを無効化
         document.getElementById('btn-solo-start').disabled = true;
         document.getElementById('btn-pvp-start').innerText = "SEARCHING...";
 
@@ -218,7 +216,7 @@
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         document.getElementById('opp-display').style.display = 'block';
-        document.getElementById('solo-back-btn').style.display = 'none'; // 対戦中は戻れない
+        document.getElementById('solo-back-btn').style.display = 'none';
         const oppKey = pKey === "p1" ? "p2" : "p1";
         db.ref(`rooms/${roomId}/${oppKey}`).on('value', s => {
             if(s.exists()){
@@ -235,7 +233,6 @@
 
     function startGame() {
         gameStarted = true; score = 0; missCount = 0; charIdx = 0;
-        document.getElementById('solo-back-btn').style.display = 'none'; // 開始したらボタンを隠す
         questions.sort(()=>Math.random()-0.5);
         render(); updateMissUI();
         let t = TIME_LIMIT;
@@ -267,6 +264,7 @@
             document.getElementById('my-score').innerText = score;
             if (mode === "pvp") db.ref(`rooms/${roomId}/${pKey}`).update({ score: score });
         } else {
+            // ミスカウントを1増やす
             missCount++;
             if (missCount >= 10) triggerStun();
         }
