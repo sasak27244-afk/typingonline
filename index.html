@@ -152,7 +152,7 @@
     function backToLobby() {
         if(gameTimer) clearInterval(gameTimer);
         gameStarted = false; score = 0; missCount = 0;
-        if(roomId && mode === "pvp") db.ref(`rooms/${roomId}`).off();
+        if(roomId) db.ref(`rooms/${roomId}`).off();
         document.getElementById('my-score').innerText = "0";
         document.getElementById('timer').innerText = "60";
         document.getElementById('lobby').style.display = 'flex';
@@ -177,29 +177,34 @@
             roomId = "custom_" + customId;
             const rRef = db.ref(`rooms/${roomId}`);
             rRef.once('value', s => {
-                if (!s.exists() || !s.val().p1) {
+                const data = s.val();
+                if (!data || !data.p1) {
                     pKey = "p1";
-                    rRef.set({ p1: { name: myName, score: 0, rate: myRate } });
-                    rRef.child('p2').on('value', s2 => { if(s2.exists()) startPvP(); });
+                    rRef.update({ p1: { name: myName, score: 0, rate: myRate } });
+                    rRef.child('p2').on('value', snap => { if(snap.exists()) startPvP(); });
                 } else {
                     pKey = "p2";
-                    rRef.child('p2').set({ name: myName, score: 0, rate: myRate });
+                    rRef.update({ p2: { name: myName, score: 0, rate: myRate } });
                     startPvP();
                 }
             });
         } else {
+            // 野良マッチング
             db.ref('waiting_room').transaction(cur => {
-                if (cur) return null;
+                if (cur) return null; // 誰かいたら自分が子機になる
                 return { id: "room_" + Date.now(), name: myName, rate: myRate };
             }, (err, committed, snap) => {
-                if (snap.val() && snap.val().name === myName) {
+                if (committed && snap.val() && snap.val().name === myName) {
+                    // 親機として待機
                     roomId = snap.val().id; pKey = "p1";
                     db.ref(`rooms/${roomId}/p1`).set({ name: myName, score: 0, rate: myRate });
                     db.ref(`rooms/${roomId}/p2`).on('value', s => { if(s.exists()) startPvP(); });
                 } else {
+                    // 子機として参加
                     db.ref('waiting_room').once('value', s => {
-                        if(!s.exists()) { cancelMatching(); return; }
-                        roomId = s.val().id; pKey = "p2";
+                        const waitData = s.val();
+                        if(!waitData) { cancelMatching(); return; }
+                        roomId = waitData.id; pKey = "p2";
                         db.ref(`rooms/${roomId}/p2`).set({ name: myName, score: 0, rate: myRate });
                         db.ref('waiting_room').remove();
                         startPvP();
@@ -210,7 +215,10 @@
     }
 
     function cancelMatching() {
-        if(roomId) db.ref(`rooms/${roomId}`).remove();
+        if(roomId) {
+            db.ref(`rooms/${roomId}`).off();
+            db.ref(`rooms/${roomId}`).remove();
+        }
         db.ref('waiting_room').once('value', s => {
             if(s.exists() && s.val().name === myName) db.ref('waiting_room').remove();
         });
@@ -231,16 +239,20 @@
         
         const oppKey = pKey === "p1" ? "p2" : "p1";
         db.ref(`rooms/${roomId}/${oppKey}`).on('value', s => {
-            if(s.exists()){
-                document.getElementById('opp-name').innerText = s.val().name;
-                document.getElementById('opp-score').innerText = s.val().score;
+            const d = s.val();
+            if(d){
+                document.getElementById('opp-name').innerText = d.name;
+                document.getElementById('opp-score').innerText = d.score;
             }
         });
 
-        let c = 3;
-        const i = setInterval(() => {
-            document.getElementById('target').innerText = c;
-            if(c-- <= 0) { clearInterval(i); startGame(); }
+        let countdown = 3;
+        const timerInt = setInterval(() => {
+            document.getElementById('target').innerText = countdown;
+            if(countdown-- <= 0) { 
+                clearInterval(timerInt); 
+                startGame(); 
+            }
         }, 1000);
     }
 
