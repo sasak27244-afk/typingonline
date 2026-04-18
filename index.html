@@ -2,64 +2,88 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=1280">
-    <title>English Typing Battle v1.06</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Typing Battle - Pro</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
         :root { --primary: #00e676; --error: #ff5252; --bg: #0d0d0d; --panel: #1a1a1a; }
         body { background: var(--bg); color: #eee; font-family: 'Consolas', monospace; margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         
+        /* ロビー UI */
         #lobby { position: fixed; inset: 0; background: #111; z-index: 200; display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 20px; }
-        .lobby-box { background: var(--panel); padding: 25px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 450px; margin-bottom: 20px; }
+        .lobby-box { background: var(--panel); padding: 25px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 90%; max-width: 420px; margin-bottom: 20px; }
         input[type="text"] { padding: 12px; font-size: 1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 85%; margin-bottom: 12px; outline: none; }
-        input[type="text"]:disabled { opacity: 0.5; cursor: not-allowed; }
-        
-        .btn-group { display: flex; justify-content: center; gap: 8px; }
-        .btn { padding: 12px 15px; font-size: 0.85rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; transition: 0.2s; white-space: nowrap; flex: 1; }
+        .btn { padding: 12px 20px; font-size: 0.9rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 5px; transition: 0.2s; min-width: 120px; }
         .btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .btn-pvp { background: var(--primary); color: #000; }
         .btn-solo { background: #444; color: #fff; }
-        .btn-cancel { background: var(--error); color: #fff; display: none; }
-        .btn-back { background: transparent; color: #888; border: 1px solid #444; margin-top: 15px; width: 200px; height: 45px; line-height: 15px; display: inline-block; }
+        .btn-back { background: transparent; color: #888; border: 1px solid #444; margin-top: 15px; }
 
-        #ranking-area { display: flex; width: 900px; gap: 15px; justify-content: center; padding-bottom: 40px; }
-        .ranking-board { flex: 1; background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid #444; min-height: 400px; }
+        /* ランキング */
+        #ranking-area { display: flex; width: 100%; max-width: 900px; gap: 15px; flex-wrap: wrap; justify-content: center; padding-bottom: 40px; }
+        .ranking-board { flex: 1; min-width: 300px; background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid #444; min-height: 400px; }
         .ranking-board h3 { color: var(--primary); text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-top: 0; }
         .rank-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #222; font-size: 0.9rem; }
 
-        #game-view { display: none; text-align: center; width: 800px; position: relative; }
+        /* ゲーム画面 */
+        #game-view { display: none; text-align: center; width: 95%; max-width: 800px; position: relative; transition: filter 0.3s; }
         #timer { font-size: 3.5rem; color: var(--error); font-weight: bold; margin: 10px 0; }
-        #opp-display { display: none; color: var(--primary); font-size: 1.3rem; margin-bottom: 15px; border: 1px solid var(--primary); padding: 10px; border-radius: 5px; }
+        #opp-display { display: none; color: var(--primary); font-size: 1.3rem; margin-bottom: 15px; border: 1px solid var(--primary); padding: 5px; border-radius: 5px; }
 
-        .miss-info { display: flex; justify-content: space-between; width: 500px; margin: 0 auto; color: var(--error); font-weight: bold; font-size: 0.9rem; }
-        .miss-container { width: 500px; height: 12px; background: #333; margin: 5px auto 25px; border-radius: 6px; overflow: hidden; border: 1px solid #444; }
+        /* ミス表示 */
+        .miss-info { display: flex; justify-content: space-between; max-width: 500px; margin: 0 auto; color: var(--error); font-weight: bold; font-size: 0.9rem; }
+        .miss-container { width: 100%; max-width: 500px; height: 12px; background: #333; margin: 5px auto 25px; border-radius: 6px; overflow: hidden; border: 1px solid #444; }
         #miss-bar { width: 0%; height: 100%; background: var(--error); transition: width 0.2s; }
 
-        #stun-overlay { display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, 0.7); flex-direction: column; align-items: center; justify-content: center; }
-        .stun-text h2 { font-size: 5rem; margin: 0; font-weight: 900; color: var(--error); }
-        .is-stunned { filter: blur(8px); pointer-events: none; }
+        /* スタン演出 */
+        #stun-overlay { 
+            display: none; position: fixed; inset: 0; z-index: 1000; 
+            background: rgba(0, 0, 0, 0.4); 
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+        .stun-text { color: #ffffff; text-align: center; }
+        .stun-text h2 { font-size: 5rem; margin: 0; font-weight: 900; letter-spacing: 5px; }
+        .stun-text p { font-size: 2.5rem; font-weight: bold; }
+        .is-stunned { filter: blur(20px); pointer-events: none; }
 
+        /* テキスト表示 */
         #target { font-size: 2.5rem; min-height: 4rem; color: #fff; word-break: break-all; margin: 20px 0; }
         #trans { color: var(--primary); font-size: 1.5rem; min-height: 1.8rem; margin-bottom: 20px; }
         .current { border-bottom: 5px solid var(--primary); background: rgba(0, 230, 118, 0.1); }
         .correct { color: #555; }
 
-        #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.98); flex-direction: column; align-items: center; justify-content: center; z-index: 300; }
+        #result-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.98);
+            flex-direction: column;
+            align-items: center;      /* 子要素を中央に寄せる */
+            justify-content: center;
+            z-index: 300;
+        }
+
+/* ボタンが縦に伸びるのを防ぎ、サイズを固定する */
+        #result-overlay .btn {
+            width: 240px;            /* ボタンの横幅を固定 */
+            height: 50px;            /* ボタンの高さを固定 */
+            flex: none;              /* flexによる自動伸縮を無効化 */
+            margin-top: 20px;        /* 上のテキストとの間隔 */
+        }
     </style>
 </head>
 <body>
 
 <div id="lobby">
     <div class="lobby-box">
-        <h1 style="color: var(--primary); margin: 0; font-size: 2rem;">ENGLISH TYPING BATTLE</h1>
-        <p style="color: #ffd700; font-weight: bold; margin: 10px 0;">Your Rate: <span id="my-rate-val">0</span></p>
+        <h1 style="color: var(--primary); margin: 0; font-size: 2rem;">AI TYPING BATTLE</h1>
+        <p style="color: #ffd700; font-weight: bold; margin: 10px 0;">Your Rate: <span id="my-rate-val">---</span></p>
         <input type="text" id="player-name" placeholder="YOUR NAME" maxlength="10">
         <input type="text" id="room-id-input" placeholder="ROOM ID (Optional)" maxlength="15">
-        <div class="btn-group">
+        <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
             <button id="btn-pvp-start" class="btn btn-pvp" onclick="initPvP()">1v1 ONLINE</button>
             <button id="btn-solo-start" class="btn btn-solo" onclick="initSolo()">SOLO MODE</button>
-            <button id="btn-cancel" class="btn btn-cancel" onclick="cancelMatching()">CANCEL</button>
         </div>
         <p id="match-status" style="margin-top:15px; font-size:0.8rem; color:#888; min-height: 1rem;"></p>
     </div>
@@ -77,10 +101,15 @@
     <div id="target">Ready...</div>
     <div id="trans"></div>
     <div style="font-size: 1.8rem; font-weight: bold;">SCORE: <span id="my-score">0</span></div>
-    <div><button id="game-back-btn" class="btn btn-back" onclick="backToLobby()">BACK TO LOBBY</button></div>
+    <button id="solo-back-btn" class="btn btn-back" onclick="location.reload()" style="display:none;">BACK TO LOBBY</button>
 </div>
 
-<div id="stun-overlay"><div class="stun-text"><h2>STUN!</h2><p>WAIT <span id="stun-timer">2.0</span>s</p></div></div>
+<div id="stun-overlay">
+    <div class="stun-text">
+        <h2>STUN!</h2>
+        <p>WAIT <span id="stun-timer">2.0</span>s</p>
+    </div>
+</div>
 
 <div id="result-overlay">
     <h1 id="res-title" style="font-size: 3.5rem; color: var(--primary); margin: 0;">FINISH!</h1>
@@ -89,7 +118,6 @@
 </div>
 
 <script>
-    // Firebase Config (Keep your original config here)
     const firebaseConfig = {
         apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
         authDomain: "typing-game-5176f.firebaseapp.com",
@@ -102,14 +130,12 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    let myName = "", mode = "solo", myRate = 0, roomId = null, pKey = "p1", questions = [];
+    let myName = "", mode = "solo", myRate = 1000, roomId = null, pKey = "p1", questions = [];
     let qIdx = 0, charIdx = 0, score = 0, gameStarted = false, isStunned = false, missCount = 0, gameTimer = null;
-    let isReady = false, readyTimeout = null, customRoomFlag = false;
     const TIME_LIMIT = 60;
 
     window.onload = () => {
-        const savedRate = localStorage.getItem('typing_rate');
-        myRate = (savedRate === null) ? 0 : parseInt(savedRate);
+        myRate = parseInt(localStorage.getItem('typing_rate')) || 1000;
         document.getElementById('my-rate-val').innerText = myRate;
         document.getElementById('player-name').value = localStorage.getItem('typing_name') || "";
         loadData();
@@ -121,9 +147,7 @@
         try {
             const res = await fetch('questions.json?v=' + Date.now());
             questions = await res.json();
-        } catch(e) { 
-            questions = [{english:"hello world", japanese:"こんにちは"}, {english:"coding life", japanese:"プログラミング生活"}];
-        }
+        } catch(e) { console.error("Data Load Error"); }
     }
 
     function updateRanking() {
@@ -149,125 +173,81 @@
         setupUser();
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
-        document.getElementById('opp-display').style.display = 'none';
+        document.getElementById('solo-back-btn').style.display = 'inline-block';
         document.getElementById('target').innerText = "Press Any Key to START";
-        isReady = false;
-        gameStarted = false;
     }
 
     function initPvP() {
         mode = "pvp";
         setupUser();
         const customId = document.getElementById('room-id-input').value.trim();
-        customRoomFlag = (customId !== "");
         
-        document.getElementById('btn-pvp-start').disabled = true;
+        // 待機中はソロボタンを無効化
         document.getElementById('btn-solo-start').disabled = true;
-        document.getElementById('btn-cancel').style.display = 'inline-block';
-        document.getElementById('player-name').disabled = true;
-        document.getElementById('room-id-input').disabled = true;
-        document.getElementById('match-status').innerText = "SEARCHING...";
+        document.getElementById('btn-pvp-start').innerText = "SEARCHING...";
 
-        if (customRoomFlag) {
+        if (customId) {
             roomId = "custom_" + customId;
-            joinRoom(roomId);
-        } else {
-            const waitRef = db.ref('waiting_room');
-            waitRef.transaction(current => {
-                if (current === null) return { id: "room_" + Date.now(), name: myName };
-                return undefined;
-            }, (error, committed, snapshot) => {
-                if (committed) {
-                    roomId = snapshot.val().id;
+            const rRef = db.ref(`rooms/${roomId}`);
+            rRef.once('value', s => {
+                if (!s.exists() || !s.val().p1) {
                     pKey = "p1";
-                    db.ref(`rooms/${roomId}/p1`).set({ name: myName, score: 0, rate: myRate, ready: false });
-                    db.ref(`rooms/${roomId}/p1`).onDisconnect().remove();
-                    db.ref(`rooms/${roomId}/p2`).on('value', s => { if(s.exists()) setupMatchUI(); });
+                    rRef.child('p1').set({ name: myName, score: 0, rate: myRate });
+                    document.getElementById('match-status').innerText = "Waiting for Player 2...";
+                    rRef.child('p2').on('value', s2 => { if(s2.exists()) startPvP(); });
                 } else {
-                    roomId = snapshot.val().id;
                     pKey = "p2";
-                    db.ref(`rooms/${roomId}/p2`).set({ name: myName, score: 0, rate: myRate, ready: false });
-                    db.ref(`rooms/${roomId}/p2`).onDisconnect().remove();
-                    waitRef.remove();
-                    setupMatchUI();
+                    rRef.child('p2').set({ name: myName, score: 0, rate: myRate });
+                    startPvP();
+                }
+            });
+        } else {
+            document.getElementById('match-status').innerText = "Finding Opponent...";
+            db.ref('waiting_room').transaction(cur => {
+                if (cur) return null;
+                return { id: "room_" + Date.now(), name: myName, rate: myRate };
+            }, (err, committed, snap) => {
+                if (snap.val() && snap.val().name === myName) {
+                    roomId = snap.val().id; pKey = "p1";
+                    db.ref(`rooms/${roomId}/p1`).set({ name: myName, score: 0, rate: myRate });
+                    db.ref(`rooms/${roomId}/p2`).on('value', s => { if(s.exists()) startPvP(); });
+                } else {
+                    db.ref('waiting_room').once('value', s => {
+                        if(!s.exists()) return;
+                        roomId = s.val().id; pKey = "p2";
+                        db.ref(`rooms/${roomId}/p2`).set({ name: myName, score: 0, rate: myRate });
+                        db.ref('waiting_room').remove();
+                        startPvP();
+                    });
                 }
             });
         }
     }
 
-    function joinRoom(rId) {
-        const rRef = db.ref(`rooms/${rId}`);
-        rRef.once('value', s => {
-            const d = s.val();
-            if(!d || !d.p1) {
-                pKey = "p1";
-                rRef.child('p1').set({ name: myName, score: 0, rate: myRate, ready: false });
-                rRef.child('p1').onDisconnect().remove();
-                rRef.child('p2').on('value', snap => { if(snap.exists()) setupMatchUI(); });
-            } else {
-                pKey = "p2";
-                rRef.child('p2').set({ name: myName, score: 0, rate: myRate, ready: false });
-                rRef.child('p2').onDisconnect().remove();
-                setupMatchUI();
+    function startPvP() {
+        document.getElementById('lobby').style.display = 'none';
+        document.getElementById('game-view').style.display = 'block';
+        document.getElementById('opp-display').style.display = 'block';
+        document.getElementById('solo-back-btn').style.display = 'none';
+        const oppKey = pKey === "p1" ? "p2" : "p1";
+        db.ref(`rooms/${roomId}/${oppKey}`).on('value', s => {
+            if(s.exists()){
+                document.getElementById('opp-name').innerText = s.val().name;
+                document.getElementById('opp-score').innerText = s.val().score;
             }
         });
-    }
-
-    function setupMatchUI() {
-        document.getElementById('match-status').innerText = "MATCH FOUND!";
-        setTimeout(() => {
-            document.getElementById('lobby').style.display = 'none';
-            document.getElementById('game-view').style.display = 'block';
-            document.getElementById('opp-display').style.display = 'block';
-            document.getElementById('target').innerText = "Press Any Key to READY";
-            
-            const oppKey = pKey === "p1" ? "p2" : "p1";
-            db.ref(`rooms/${roomId}/${oppKey}`).on('value', s => {
-                const d = s.val();
-                if(d) {
-                    document.getElementById('opp-name').innerText = d.name;
-                    document.getElementById('opp-score').innerText = d.score;
-                }
-            });
-
-            readyTimeout = setTimeout(() => {
-                if(!isReady) backToLobby();
-            }, 10000);
-        }, 500);
-    }
-
-    function setReady() {
-        if(isReady) return;
-        isReady = true;
-        if(readyTimeout) clearTimeout(readyTimeout);
-        db.ref(`rooms/${roomId}/${pKey}`).update({ ready: true });
-        document.getElementById('target').innerText = "WAITING FOR OPPONENT...";
-
-        db.ref(`rooms/${roomId}`).on('value', s => {
-            const d = s.val();
-            if(d && d.p1 && d.p2 && d.p1.ready && d.p2.ready) {
-                db.ref(`rooms/${roomId}`).off('value');
-                startPvPCountdown();
-            }
-        });
-    }
-
-    function startPvPCountdown() {
-        let count = 3;
+        let c = 3;
         const i = setInterval(() => {
-            document.getElementById('target').innerText = count;
-            if(count-- <= 0) { clearInterval(i); startGame(); }
+            document.getElementById('target').innerText = c;
+            if(c-- <= 0) { clearInterval(i); startGame(); }
         }, 1000);
     }
 
     function startGame() {
-        gameStarted = true; score = 0; missCount = 0; charIdx = 0; qIdx = 0;
-        document.getElementById('my-score').innerText = "0";
+        gameStarted = true; score = 0; missCount = 0; charIdx = 0;
         questions.sort(()=>Math.random()-0.5);
-        render(); 
-        updateMissUI();
+        render(); updateMissUI();
         let t = TIME_LIMIT;
-        document.getElementById('timer').innerText = t;
         gameTimer = setInterval(() => {
             document.getElementById('timer').innerText = --t;
             if(t <= 0) { clearInterval(gameTimer); finishGame(); }
@@ -275,7 +255,6 @@
     }
 
     function render() {
-        if(!gameStarted) return;
         const q = questions[qIdx];
         if(!q) return;
         document.getElementById('target').innerHTML = q.english.split('').map((c, i) => 
@@ -284,13 +263,8 @@
     }
 
     function handleInput(key) {
-        const isVisible = document.getElementById('game-view').style.display === 'block';
-        if (!gameStarted) {
-            if(mode === "solo" && isVisible) startGame();
-            else if(mode === "pvp" && isVisible) setReady();
-            return;
-        }
-        if (isStunned || key.length !== 1 || !isVisible) return;
+        if (!gameStarted && mode === "solo") { startGame(); return; }
+        if (!gameStarted || isStunned || key.length !== 1) return;
 
         const q = questions[qIdx];
         if (key === q.english[charIdx]) {
@@ -301,6 +275,7 @@
             document.getElementById('my-score').innerText = score;
             if (mode === "pvp") db.ref(`rooms/${roomId}/${pKey}`).update({ score: score });
         } else {
+            // ミスカウントを正確に+1
             missCount++;
             if (missCount >= 10) triggerStun();
         }
@@ -319,7 +294,7 @@
         let r = 2.0;
         const i = setInterval(() => {
             r -= 0.1;
-            document.getElementById('stun-timer').innerText = Math.max(0, r).toFixed(1);
+            document.getElementById('stun-timer').innerText = r.toFixed(1);
             if (r <= 0) {
                 clearInterval(i); isStunned = false; missCount = 0;
                 document.getElementById('game-view').classList.remove('is-stunned');
@@ -330,81 +305,50 @@
     }
 
     function finishGame() {
-        if(gameTimer) clearInterval(gameTimer);
         gameStarted = false;
-        const finalWPM = parseFloat(((score / 5) / (TIME_LIMIT / 60)).toFixed(1));
+        // WPM算出: (合計打鍵数 / 5) / (経過時間(秒) / 60)
+        const wpm = (score / 5) / (TIME_LIMIT / 60);
+        const finalWPM = parseFloat(wpm.toFixed(1));
 
         if (mode === "pvp") {
             const oppKey = pKey === "p1" ? "p2" : "p1";
-            db.ref(`rooms/${roomId}`).once('value', s => {
+            db.ref(`rooms/${roomId}`).once('value', async s => {
                 const d = s.val();
                 if(!d || !d[oppKey]) return;
-                const myS = d[pKey].score, oppS = d[oppKey].score, oppRate = d[oppKey].rate || 0;
-                let resTxt = (myS > oppS) ? "VICTORY!" : (myS < oppS ? "DEFEAT..." : "DRAW");
+                const myS = d[pKey].score, oppS = d[oppKey].score;
+                const oppRate = d[oppKey].rate || 1000;
 
-                if (!customRoomFlag) {
-                    let base = 30;
-                    let diff = Math.floor((myRate - oppRate) / 100);
-                    let change = 0;
-                    if (myS > oppS) {
-                        change = Math.max(1, base - (diff * 2));
-                        myRate += change;
-                        resTxt += ` (+${change})`;
-                    } else if (myS < oppS) {
-                        change = base + (diff * 2);
-                        myRate = Math.max(0, myRate - change);
-                        resTxt += ` (-${change})`;
-                    }
-                    db.ref(`rate_ranking/${myName}`).set(myRate);
-                    localStorage.setItem('typing_rate', myRate);
-                } else {
-                    resTxt += " (Practice Mode)";
-                }
+                let base = 30;
+                let adj = Math.floor((myRate - oppRate) / 100) * 2;
+                let change = 0, resTxt = "";
+
+                if (myS > oppS) {
+                    change = base - adj;
+                    resTxt = `VICTORY! (+${change})`; myRate += change;
+                } else if (myS < oppS) {
+                    change = base + adj;
+                    resTxt = `DEFEAT... (-${change})`; myRate = Math.max(0, myRate - change);
+                } else { resTxt = "DRAW"; }
+
                 document.getElementById('res-title').innerText = resTxt;
-                document.getElementById('final-stats').innerHTML = `My Score: ${myS}<br>Opponent: ${oppS}<br>WPM: ${finalWPM}<br>Current Rate: ${myRate}`;
+                document.getElementById('final-stats').innerHTML = `My Score: ${myS}<br>Opponent: ${oppS}<br>WPM: ${finalWPM}<br>New Rate: ${myRate}`;
+                
+                db.ref(`rate_ranking/${myName}`).set(myRate);
+                localStorage.setItem('typing_rate', myRate);
+                db.ref(`rooms/${roomId}`).remove();
             });
         } else {
-            document.getElementById('res-title').innerText = "FINISH!";
             document.getElementById('final-stats').innerHTML = `SCORE: ${score}<br>WPM: ${finalWPM}`;
             db.ref(`npc_ranking/${myName}`).transaction(c => finalWPM > (c||0) ? finalWPM : c);
         }
         document.getElementById('result-overlay').style.display = 'flex';
     }
 
-    function backToLobby() {
-        if(gameTimer) clearInterval(gameTimer);
-        if(readyTimeout) clearTimeout(readyTimeout);
-        gameStarted = false; score = 0; missCount = 0; isReady = false;
-        
-        if(roomId) {
-            db.ref(`rooms/${roomId}`).off();
-            db.ref(`rooms/${roomId}/${pKey}`).remove();
-        }
-        
-        cancelMatching();
-        
-        document.getElementById('lobby').style.display = 'flex';
-        document.getElementById('game-view').style.display = 'none';
-        document.getElementById('result-overlay').style.display = 'none';
-        document.getElementById('opp-display').style.display = 'none';
-    }
-
-    function cancelMatching() {
-        db.ref('waiting_room').once('value', s => {
-            if(s.exists() && s.val().name === myName) db.ref('waiting_room').remove();
-        });
-        
-        roomId = null;
-        document.getElementById('btn-pvp-start').disabled = false;
-        document.getElementById('btn-solo-start').disabled = false;
-        document.getElementById('btn-cancel').style.display = 'none';
-        document.getElementById('player-name').disabled = false;
-        document.getElementById('room-id-input').disabled = false;
-        document.getElementById('match-status').innerText = "";
-    }
-
     window.addEventListener('keydown', e => {
+        // 入力欄にフォーカスがある時はゲーム入力を無視
         if (e.target.tagName === 'INPUT') return;
+        // IME入力を無視
+        if (e.key === 'Process' || e.key === '229') return; 
         handleInput(e.key);
     });
 </script>
