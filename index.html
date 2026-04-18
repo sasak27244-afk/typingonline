@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Typing Battle - Pro</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
@@ -54,14 +54,9 @@
         .correct { color: #555; }
 
         #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.98); flex-direction: column; align-items: center; justify-content: center; z-index: 300; }
-        #mobile-input { position: absolute; opacity: 0; pointer-events: none; }
-
-        @media (max-width: 600px) { #target { font-size: 1.8rem; } #trans { font-size: 1.1rem; } }
     </style>
 </head>
 <body>
-
-<input type="url" id="mobile-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url">
 
 <div id="lobby">
     <div class="lobby-box">
@@ -151,6 +146,11 @@
         });
     }
 
+    function setupUser() {
+        myName = document.getElementById('player-name').value.trim() || "Guest";
+        localStorage.setItem('typing_name', myName);
+    }
+
     function initSolo() {
         mode = "solo";
         setupUser();
@@ -158,12 +158,6 @@
         document.getElementById('game-view').style.display = 'block';
         document.getElementById('solo-back-btn').style.display = 'inline-block';
         document.getElementById('target').innerText = "Press Any Key to START";
-        focusInput();
-    }
-
-    function setupUser() {
-        myName = document.getElementById('player-name').value.trim() || "Guest";
-        localStorage.setItem('typing_name', myName);
     }
 
     function initPvP() {
@@ -171,6 +165,7 @@
         setupUser();
         const customId = document.getElementById('room-id-input').value.trim();
         
+        // 待機中はソロボタンを無効化
         document.getElementById('btn-solo-start').disabled = true;
         document.getElementById('btn-pvp-start').innerText = "SEARCHING...";
 
@@ -240,7 +235,6 @@
             document.getElementById('timer').innerText = --t;
             if(t <= 0) { clearInterval(gameTimer); finishGame(); }
         }, 1000);
-        focusInput();
     }
 
     function render() {
@@ -264,7 +258,7 @@
             document.getElementById('my-score').innerText = score;
             if (mode === "pvp") db.ref(`rooms/${roomId}/${pKey}`).update({ score: score });
         } else {
-            // ミスカウントを1増やす
+            // ミスカウントを正確に+1
             missCount++;
             if (missCount >= 10) triggerStun();
         }
@@ -289,13 +283,13 @@
                 document.getElementById('game-view').classList.remove('is-stunned');
                 document.getElementById('stun-overlay').style.display = 'none';
                 updateMissUI();
-                focusInput();
             }
         }, 100);
     }
 
     function finishGame() {
         gameStarted = false;
+        // WPM算出: (合計打鍵数 / 5) / (経過時間(秒) / 60)
         const wpm = (score / 5) / (TIME_LIMIT / 60);
         const finalWPM = parseFloat(wpm.toFixed(1));
 
@@ -333,28 +327,12 @@
         document.getElementById('result-overlay').style.display = 'flex';
     }
 
-    function focusInput() {
-        const mi = document.getElementById('mobile-input');
-        mi.focus();
-        mi.click();
-    }
-
     window.addEventListener('keydown', e => {
-        if (e.target.tagName === 'INPUT' && e.target.id !== 'mobile-input') return;
+        // 入力欄にフォーカスがある時はゲーム入力を無視
+        if (e.target.tagName === 'INPUT') return;
+        // IME入力を無視
         if (e.key === 'Process' || e.key === '229') return; 
         handleInput(e.key);
-    });
-
-    document.getElementById('mobile-input').addEventListener('input', e => {
-        const val = e.target.value;
-        if(val.length > 0) {
-            handleInput(val.slice(-1).toLowerCase());
-            e.target.value = ""; 
-        }
-    });
-
-    document.body.addEventListener('touchstart', () => {
-        if(gameStarted && !isStunned) focusInput();
     });
 </script>
 </body>
