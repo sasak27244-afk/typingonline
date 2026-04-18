@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Typing Battle - Fixed Edition</title>
+    <title>AI Typing Battle - Complete Edition</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -18,7 +18,8 @@
         #rate-display { color: #ffd700; font-size: 1.5rem; margin-top: 10px; font-weight: bold; }
         #game-view { display: none; text-align: center; width: 90%; max-width: 800px; }
         #timer { font-size: 4rem; color: #ff5252; font-weight: bold; }
-        #target { font-size: 2.4rem; min-height: 5rem; line-height: 1.4; margin: 20px 0; }
+        #target { font-size: 2.4rem; min-height: 3rem; line-height: 1.4; margin-top: 20px; }
+        #trans { color: #00e676; font-size: 1.4rem; min-height: 2rem; margin-bottom: 20px; }
         .current { border-bottom: 4px solid #00e676; }
         .correct { color: #555; }
         .wrong { background: #ff5252; color: #fff; }
@@ -52,6 +53,7 @@
     <div id="timer">60</div>
     <div id="status-msg" style="color:#ffd700; font-weight:bold; font-size: 1.2rem;">READY?</div>
     <div id="target">Wait...</div>
+    <div id="trans"></div>
     <div id="score-board">
         <div class="score-box"><span id="display-my-name">YOU</span>: <span id="my-score">0</span></div>
         <div class="score-box"><span id="display-opp-name">ENEMY</span>: <span id="opp-score">0</span></div>
@@ -104,14 +106,11 @@
         myName = document.getElementById('player-name').value.trim() || "Guest";
         let rawRoomId = document.getElementById('room-input').value.trim();
         roomId = rawRoomId || "lobby_global";
-
         localStorage.setItem('typing_name', myName);
         localStorage.setItem('typing_room', rawRoomId);
-
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         document.getElementById('display-my-name').innerText = myName;
-
         if (mode === 'pvp') setupPVP(); else setupNPC();
     }
 
@@ -179,6 +178,7 @@
         const q = questions[qIdx];
         document.getElementById('target').innerHTML = q.english.split('').map((c, i) => 
             `<span class="${i === charIdx ? 'current' : (i < charIdx ? 'correct' : '')}">${c}</span>`).join('');
+        document.getElementById('trans').innerText = q.japanese; // 和訳を更新
     }
 
     function finishGame() {
@@ -186,10 +186,7 @@
         const label = document.getElementById('win-lose-label');
         const rateLabel = document.getElementById('rate-change');
         const reasonLabel = document.getElementById('no-rate-reason');
-        
-        // レート変動条件の再定義
         const isOfficialMatch = (mode === 'pvp' && roomId === "lobby_global");
-        
         let baseChange = 0;
         if (score > oppScore) {
             label.innerText = "YOU WIN!"; label.style.color = "#00e676";
@@ -199,11 +196,8 @@
             label.innerText = "YOU LOSE..."; label.style.color = "#ff5252";
             baseChange = -30 + Math.floor((oppRate - myRate) / 100) * 2;
             if (baseChange > -5) baseChange = -5;
-        } else {
-            label.innerText = "DRAW";
-        }
+        } else { label.innerText = "DRAW"; }
 
-        // 重要：NPCモードまたはルームID指定時は、強制的にレート変動を0にする
         if (isOfficialMatch) {
             myRate = Math.max(0, myRate + baseChange);
             localStorage.setItem('typing_rate', myRate);
@@ -213,7 +207,6 @@
             rateLabel.innerText = "Rate: No Change";
             reasonLabel.innerText = (mode === 'npc') ? "NPCモードではレートは変動しません" : "プライベートルームではレートは変動しません";
         }
-
         document.getElementById('result-overlay').style.display = 'flex';
         db.ref('ranking').push({ name: myName, score: score, rate: myRate });
     }
