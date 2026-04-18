@@ -3,42 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Typing Battle - Ranking Fixed</title>
+    <title>AI Typing Battle - Online & Penalty Fixed</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
         body { background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         
-        /* ロビー画面：スクロール可能にしてランキングを下に配置 */
-        #lobby { position: fixed; inset: 0; background: #111; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto; padding: 40px 20px; }
-        .lobby-box { background: #1a1a1a; padding: 30px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 100%; max-width: 400px; margin-bottom: 30px; flex-shrink: 0; }
+        /* ロビー */
+        #lobby { position: fixed; inset: 0; background: #111; z-index: 200; display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 40px 20px; }
+        .lobby-box { background: #1a1a1a; padding: 30px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 100%; max-width: 400px; margin-bottom: 30px; }
         
         input { padding: 12px; font-size: 1.1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 85%; margin-bottom: 15px; outline: none; }
         .btn { padding: 12px 25px; font-size: 1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 5px; transition: 0.2s; }
         .btn-pvp { background: #00e676; color: #000; }
         .btn-solo { background: #444; color: #fff; }
 
-        /* ランキングエリア：常に表示 */
+        /* ランキング */
         #ranking-area { display: flex; width: 100%; max-width: 800px; gap: 20px; flex-wrap: wrap; justify-content: center; margin-bottom: 50px; }
-        .ranking-board { flex: 1; min-width: 280px; background: #1a1a1a; padding: 20px; border-radius: 12px; border: 1px solid #444; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .ranking-board h3 { color: #00e676; text-align: center; margin-top: 0; border-bottom: 2px solid #333; padding-bottom: 10px; font-size: 1.2rem; }
-        .rank-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #222; font-size: 1rem; color: #fff; }
-        .rank-item span:first-child { color: #aaa; margin-right: 10px; } /* 名前を少し薄く */
+        .ranking-board { flex: 1; min-width: 280px; background: #1a1a1a; padding: 20px; border-radius: 12px; border: 1px solid #444; }
+        .ranking-board h3 { color: #00e676; text-align: center; margin-top: 0; border-bottom: 2px solid #333; padding-bottom: 10px; }
+        .rank-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #222; }
 
         /* ゲーム画面 */
         #game-view { display: none; text-align: center; width: 95%; max-width: 800px; position: relative; }
         #timer { font-size: 3.5rem; color: #ff5252; font-weight: bold; }
         
-        .miss-info { display: flex; justify-content: space-between; align-items: center; max-width: 400px; margin: 0 auto; color: #ff5252; font-weight: bold; font-size: 0.9rem; }
+        /* ミス表示 */
+        .miss-info { display: flex; justify-content: space-between; max-width: 400px; margin: 0 auto; color: #ff5252; font-weight: bold; font-size: 0.9rem; }
         .miss-container { width: 100%; max-width: 400px; height: 12px; background: #333; margin: 5px auto 20px; border-radius: 6px; overflow: hidden; }
         #miss-bar { width: 0%; height: 100%; background: #ff5252; transition: width 0.1s; }
 
-        #stun-message { 
-            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            color: #ffffff; font-size: 4.5rem; font-weight: 900; z-index: 1000;
-            text-shadow: 0 0 20px #ff0000; text-align: center; line-height: 1;
-        }
+        /* ペナルティ演出 */
+        #stun-message { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 4rem; font-weight: 900; z-index: 1000; text-shadow: 0 0 20px #f00; text-align: center; }
         .stunned-effect { filter: grayscale(1) brightness(0.2) blur(10px); opacity: 0.3; pointer-events: none; }
+
+        /* 対戦相手のスコア表示 */
+        #opponent-info { font-size: 1.2rem; color: #00e676; margin-bottom: 10px; display: none; }
 
         #target { font-size: 2.8rem; min-height: 4rem; margin-top: 20px; color: #fff; }
         #trans { color: #00e676; font-size: 1.6rem; margin-bottom: 30px; }
@@ -56,52 +56,39 @@
 
 <div id="lobby">
     <div class="lobby-box">
-        <h1 style="color: #00e676; margin: 0 0 10px 0; font-size: 2.5rem;">TYPING BATTLE</h1>
-        <p style="color: #ffd700; font-weight: bold; margin-bottom: 20px;">Your Rate: <span id="my-rate-val">0</span></p>
-        
+        <h1 style="color: #00e676; margin: 0 0 10px 0;">TYPING BATTLE</h1>
+        <p style="color: #ffd700; font-weight: bold;">Your Rate: <span id="my-rate-val">0</span></p>
         <input type="text" id="player-name" placeholder="YOUR NAME" maxlength="10">
-        
         <div style="display: flex; justify-content: center; gap: 10px;">
-            <button class="btn btn-pvp" onclick="joinGame('pvp')">1v1 ONLINE</button>
-            <button class="btn btn-solo" onclick="joinGame('solo')">SOLO MODE</button>
+            <button class="btn btn-pvp" onclick="joinPvP()">1v1 ONLINE</button>
+            <button class="btn btn-solo" onclick="joinSolo()">SOLO MODE</button>
         </div>
     </div>
-
     <div id="ranking-area">
-        <div class="ranking-board">
-            <h3>🏆 RATE TOP 10</h3>
-            <div id="rate-list">Loading...</div>
-        </div>
-        <div class="ranking-board">
-            <h3>🔥 SOLO BEST 10</h3>
-            <div id="solo-list">Loading...</div>
-        </div>
+        <div class="ranking-board"><h3>RATE TOP 10</h3><div id="rate-list"></div></div>
+        <div class="ranking-board"><h3>SOLO BEST 10</h3><div id="solo-list"></div></div>
     </div>
 </div>
 
 <div id="game-view">
     <div id="stun-message">STOP<br><span id="stun-timer">2.0</span>s</div>
+    <div id="opponent-info">Opponent: <span id="opp-name">---</span> | Score: <span id="opp-score">0</span></div>
     <div id="timer">60</div>
-    
-    <div class="miss-info">
-        <span>MISS WARNING</span>
-        <span id="miss-text">0 / 10</span>
-    </div>
+    <div class="miss-info"><span>MISS WARNING</span><span id="miss-text">0 / 10</span></div>
     <div class="miss-container"><div id="miss-bar"></div></div>
-
     <div id="target">Wait...</div>
     <div id="trans"></div>
     <div style="font-size: 1.8rem; font-weight: bold; color: #fff;">SCORE: <span id="my-score">0</span></div>
 </div>
 
 <div id="result-overlay">
-    <h1 style="font-size: 4rem; color: #00e676; margin: 0;">FINISH!</h1>
+    <h1 id="res-title" style="font-size: 4rem; color: #00e676; margin: 0;">FINISH!</h1>
     <div id="final-stats" style="color: #ffd700; font-size: 1.8rem; text-align: center; margin: 20px 0;"></div>
     <button class="btn btn-pvp" onclick="location.reload()">BACK TO LOBBY</button>
 </div>
 
 <script>
-    // Firebase設定（あなたの設定を維持）
+    // Firebase設定
     const firebaseConfig = {
         apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
         authDomain: "typing-game-5176f.firebaseapp.com",
@@ -114,170 +101,201 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    let myName = "", mode = "solo", myRate = 0;
+    let myName = "", mode = "solo", myRate = 0, roomId = null, playerNum = 1;
     let questions = [], qIdx = 0, charIdx = 0, score = 0, gameStarted = false;
     let missCount = 0, isStunned = false;
     const MAX_MISS = 10;
-    const GAME_TIME = 60;
 
     window.onload = () => {
         myRate = parseInt(localStorage.getItem('typing_rate')) || 0;
         document.getElementById('my-rate-val').innerText = myRate;
         const savedName = localStorage.getItem('typing_name');
-        if(savedName) {
-            document.getElementById('player-name').value = savedName;
-            myName = savedName;
-        }
+        if(savedName) document.getElementById('player-name').value = savedName;
         loadData();
-        fetchRankingData(); // 起動時にランキングを取得
-        
-        // 5秒おきにランキングを自動更新（リアルタイム性）
-        setInterval(fetchRankingData, 5000);
+        fetchRank();
+        setInterval(fetchRank, 10000);
     };
 
     async function loadData() {
-        try {
-            const res = await fetch('questions.json?v=' + Date.now());
-            questions = (await res.json()).sort(() => Math.random() - 0.5);
-        } catch(e) { console.error(e); }
+        const res = await fetch('questions.json?v=' + Date.now());
+        questions = await res.json();
     }
 
-    function fetchRankingData() {
-        // RATEランキング
-        db.ref('rate_ranking').once('value').then(snap => {
-            let arr = [];
-            snap.forEach(child => { arr.push({ n: child.key, v: child.val() }); });
-            arr.sort((a, b) => b.v - a.v);
-            const html = arr.slice(0, 10).map((r, i) => 
-                `<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v}</span></div>`).join('');
-            document.getElementById('rate-list').innerHTML = html || "No data yet";
+    function fetchRank() {
+        db.ref('rate_ranking').once('value', s => {
+            let a = []; s.forEach(c => { a.push({n:c.key, v:c.val()}); });
+            a.sort((x,y)=>y.v-x.v);
+            document.getElementById('rate-list').innerHTML = a.slice(0,10).map((r,i)=>`<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v}</span></div>`).join('');
         });
-
-        // SOLOランキング
-        db.ref('npc_ranking').once('value').then(snap => {
-            let arr = [];
-            snap.forEach(child => { arr.push({ n: child.key, v: child.val() }); });
-            arr.sort((a, b) => b.v - a.v);
-            const html = arr.slice(0, 10).map((r, i) => 
-                `<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v} pts</span></div>`).join('');
-            document.getElementById('solo-list').innerHTML = html || "No data yet";
+        db.ref('npc_ranking').once('value', s => {
+            let a = []; s.forEach(c => { a.push({n:c.key, v:c.val()}); });
+            a.sort((x,y)=>y.v-x.v);
+            document.getElementById('solo-list').innerHTML = a.slice(0,10).map((r,i)=>`<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v}</span></div>`).join('');
         });
     }
 
-    function joinGame(m) {
-        mode = m;
+    // --- オンライン対戦（PvP）ロジック ---
+    function joinPvP() {
+        mode = "pvp";
         myName = document.getElementById('player-name').value.trim() || "Guest";
         localStorage.setItem('typing_name', myName);
-        
-        // 開始時に自分の存在をデータベースに登録（ランキングに即反映させるため）
-        db.ref(`rate_ranking/${myName}`).set(myRate);
-        
+        document.getElementById('lobby').style.display = 'none';
+        document.getElementById('game-view').style.display = 'block';
+        document.getElementById('opponent-info').style.display = 'block';
+        document.getElementById('target').innerText = "Matching...";
+
+        db.ref('waiting_room').transaction(cur => {
+            if (cur) { roomId = cur; return null; } else { roomId = Date.now(); return roomId; }
+        }, (err, committed, snap) => {
+            playerNum = committed ? 1 : 2;
+            const roomRef = db.ref(`rooms/${roomId}`);
+            if (playerNum === 1) {
+                roomRef.set({ p1: { name: myName, score: 0 }, status: 'waiting' });
+                roomRef.on('value', s => {
+                    const data = s.val();
+                    if (data && data.p2 && data.status === 'waiting') {
+                        roomRef.update({ status: 'starting' });
+                        startCountDown();
+                    }
+                    if (data && data.p2) {
+                        document.getElementById('opp-name').innerText = data.p2.name;
+                        document.getElementById('opp-score').innerText = data.p2.score;
+                    }
+                });
+            } else {
+                roomRef.update({ p2: { name: myName, score: 0 } });
+                roomRef.on('value', s => {
+                    const data = s.val();
+                    if (data && data.p1) {
+                        document.getElementById('opp-name').innerText = data.p1.name;
+                        document.getElementById('opp-score').innerText = data.p1.score;
+                    }
+                    if (data && data.status === 'starting' && !gameStarted) startCountDown();
+                });
+            }
+        });
+    }
+
+    function joinSolo() {
+        mode = "solo";
+        myName = document.getElementById('player-name').value.trim() || "Guest";
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         document.getElementById('target').innerText = "Press Any Key to START";
         document.getElementById('mobile-input').focus();
     }
 
+    function startCountDown() {
+        let c = 3;
+        const i = setInterval(() => {
+            document.getElementById('target').innerText = c;
+            c--;
+            if (c < 0) { clearInterval(i); startGame(); }
+        }, 1000);
+    }
+
     function startGame() {
         gameStarted = true;
         score = 0; missCount = 0;
-        document.getElementById('my-score').innerText = "0";
-        updateMissUI();
-        let timeLeft = GAME_TIME;
+        charIdx = 0; qIdx = 0;
+        questions.sort(() => Math.random() - 0.5);
         render();
-        const timerInterval = setInterval(() => {
-            if (!gameStarted) { clearInterval(timerInterval); return; }
+        updateMissUI();
+        let timeLeft = 60;
+        const i = setInterval(() => {
             timeLeft--;
             document.getElementById('timer').innerText = timeLeft;
-            if (timeLeft <= 0) { clearInterval(timerInterval); finishGame(); }
+            if (timeLeft <= 0) { clearInterval(i); finishGame(); }
         }, 1000);
+        document.getElementById('mobile-input').focus();
     }
 
     function render() {
         const q = questions[qIdx];
-        if(!q) return;
         document.getElementById('target').innerHTML = q.english.split('').map((c, i) => 
             `<span class="${i === charIdx ? 'current' : (i < charIdx ? 'correct' : '')}">${c}</span>`).join('');
         document.getElementById('trans').innerText = q.japanese;
     }
 
     function updateMissUI() {
-        const bar = document.getElementById('miss-bar');
-        const text = document.getElementById('miss-text');
         const percentage = (missCount / MAX_MISS) * 100;
-        bar.style.width = Math.min(percentage, 100) + "%";
-        text.innerText = `${missCount} / ${MAX_MISS}`;
-        
-        if (missCount >= MAX_MISS && !isStunned) {
-            triggerPenalty();
-        }
+        document.getElementById('miss-bar').style.width = Math.min(percentage, 100) + "%";
+        document.getElementById('miss-text').innerText = `${missCount} / ${MAX_MISS}`;
+        if (missCount >= MAX_MISS && !isStunned) triggerStun();
     }
 
-    function triggerPenalty() {
+    function triggerStun() {
         isStunned = true;
-        const gameView = document.getElementById('game-view');
-        const stunMsg = document.getElementById('stun-message');
-        const stunTimerDisp = document.getElementById('stun-timer');
-        
-        gameView.classList.add('stunned-effect');
-        stunMsg.style.display = 'block';
-
-        let remaining = 2.0;
-        const countdown = setInterval(() => {
-            remaining -= 0.1;
-            stunTimerDisp.innerText = remaining.toFixed(1);
-            if (remaining <= 0) {
-                clearInterval(countdown);
-                isStunned = false;
-                missCount = 0;
+        document.getElementById('game-view').classList.add('stunned-effect');
+        document.getElementById('stun-message').style.display = 'block';
+        let r = 2.0;
+        const i = setInterval(() => {
+            r -= 0.1;
+            document.getElementById('stun-timer').innerText = r.toFixed(1);
+            if (r <= 0) {
+                clearInterval(i); isStunned = false; missCount = 0;
                 updateMissUI();
-                gameView.classList.remove('stunned-effect');
-                stunMsg.style.display = 'none';
+                document.getElementById('game-view').classList.remove('stunned-effect');
+                document.getElementById('stun-message').style.display = 'none';
             }
         }, 100);
     }
 
-    function finishGame() {
-        gameStarted = false;
-        const wpm = (score / 5) / (GAME_TIME / 60);
-        document.getElementById('final-stats').innerHTML = `Score: ${score} pts<br>WPM: ${wpm.toFixed(1)}`;
-        
-        if (mode === 'solo') {
-            db.ref(`npc_ranking/${myName}`).transaction(cur => (score > (cur || 0)) ? score : cur);
-        }
-        document.getElementById('result-overlay').style.display = 'flex';
-    }
-
     function handleInput(key) {
-        if (!gameStarted) { startGame(); return; }
-        if (isStunned || key.length !== 1) return;
+        if (!gameStarted && mode === 'solo') { startGame(); return; }
+        if (!gameStarted || isStunned || key.length !== 1) return;
 
         const q = questions[qIdx];
         if (key === q.english[charIdx]) {
             charIdx++; score++;
             missCount = Math.max(0, missCount - 1);
-            updateMissUI();
-            if (charIdx >= q.english.length) { qIdx = (qIdx + 1) % questions.length; charIdx = 0; }
+            if (charIdx >= q.english.length) { charIdx = 0; qIdx = (qIdx + 1) % questions.length; }
             render();
             document.getElementById('my-score').innerText = score;
+            if (mode === 'pvp') db.ref(`rooms/${roomId}/p${playerNum}`).update({ score: score });
         } else {
             missCount++;
-            updateMissUI();
-            const currentSpan = document.querySelectorAll('#target span')[charIdx];
-            if(currentSpan) {
-                currentSpan.classList.add('wrong-char');
-                setTimeout(() => currentSpan.classList.remove('wrong-char'), 150);
-            }
+            const s = document.querySelectorAll('#target span')[charIdx];
+            if(s) { s.classList.add('wrong-char'); setTimeout(()=>s.classList.remove('wrong-char'),150); }
         }
+        updateMissUI();
     }
 
-    window.addEventListener('keydown', e => handleInput(e.key));
-    document.getElementById('mobile-input').addEventListener('input', e => {
-        const val = e.target.value;
-        if(val.length > 0) {
-            handleInput(val.slice(-1));
-            e.target.value = "";
+    function finishGame() {
+        gameStarted = false;
+        const wpm = (score / 5);
+        document.getElementById('final-stats').innerHTML = `Score: ${score} pts<br>WPM: ${wpm.toFixed(1)}`;
+        if (mode === 'solo') {
+            db.ref(`npc_ranking/${myName}`).transaction(cur => score > (cur || 0) ? score : cur);
+        } else {
+            // PvPリザルト
+            db.ref(`rooms/${roomId}`).once('value', s => {
+                const d = s.val();
+                const oppScore = playerNum === 1 ? d.p2.score : d.p1.score;
+                if (score > oppScore) {
+                    document.getElementById('res-title').innerText = "YOU WIN!";
+                    myRate += 20;
+                } else if (score < oppScore) {
+                    document.getElementById('res-title').innerText = "YOU LOSE...";
+                    myRate = Math.max(0, myRate - 15);
+                } else {
+                    document.getElementById('res-title').innerText = "DRAW";
+                }
+                localStorage.setItem('typing_rate', myRate);
+                db.ref(`rate_ranking/${myName}`).set(myRate);
+            });
         }
+        document.getElementById('result-overlay').style.display = 'flex';
+    }
+
+    window.addEventListener('keydown', e => {
+        if (e.target.tagName === 'INPUT' && e.target.id !== 'mobile-input') return;
+        handleInput(e.key);
+    });
+
+    document.getElementById('mobile-input').addEventListener('input', e => {
+        const v = e.target.value;
+        if(v.length > 0) { handleInput(v.slice(-1)); e.target.value = ""; }
     });
 </script>
 </body>
