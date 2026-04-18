@@ -2,28 +2,29 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Typing Battle - Ranking Edition</title>
+    <title>AI Typing Battle - Ranking Fixed</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
         body { background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         #lobby { position: fixed; inset: 0; background: #111; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow-y: auto; padding: 20px 0; }
-        .lobby-box { background: #1a1a1a; padding: 30px; border-radius: 15px; border: 1px solid #333; text-align: center; width: 400px; }
+        .lobby-box { background: #1a1a1a; padding: 30px; border-radius: 15px; border: 1px solid #333; text-align: center; width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
         input { padding: 12px; font-size: 1.1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 280px; margin-bottom: 15px; outline: none; }
         input:focus { border-color: #00e676; }
         .btn { padding: 12px 30px; font-size: 1.1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 10px; transition: 0.2s; }
         .btn-pvp { background: #00e676; color: #000; }
         .btn-npc { background: #666; color: #fff; }
+        .btn-rank { background: transparent; color: #00e676; border: 1px solid #00e676; font-size: 0.9rem; padding: 8px 20px; }
         .btn:hover { transform: scale(1.05); filter: brightness(1.2); }
         #rate-display { color: #ffd700; font-size: 1.5rem; margin-top: 5px; font-weight: bold; }
 
-        /* ランキング用スタイル */
-        .ranking-container { display: flex; gap: 20px; margin-top: 30px; width: 90%; max-width: 800px; }
-        .ranking-board { flex: 1; background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #444; font-size: 0.9rem; }
-        .ranking-board h3 { color: #00e676; margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 5px; }
-        .rank-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #222; }
-        .rank-name { color: #aaa; }
-        .rank-val { font-weight: bold; color: #fff; }
+        /* ランキング用スタイル（初期は非表示） */
+        #ranking-area { display: none; margin-top: 25px; width: 95%; max-width: 850px; flex-direction: row; gap: 20px; }
+        .ranking-board { flex: 1; background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #444; font-size: 0.9rem; text-align: left; }
+        .ranking-board h3 { color: #00e676; margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 5px; text-align: center; }
+        .rank-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #222; }
+        .rank-name { color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+        .rank-val { font-weight: bold; color: #ffd700; }
 
         #game-view { display: none; text-align: center; width: 90%; max-width: 800px; }
         #timer { font-size: 4rem; color: #ff5252; font-weight: bold; }
@@ -37,15 +38,13 @@
         #match-cancel-area { margin-top: 20px; display: none; }
         
         #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: center; z-index: 300; }
-        #rate-change { font-size: 2rem; margin-top: 10px; }
-        .no-rate-msg { font-size: 1rem; color: #888; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div id="lobby">
     <div class="lobby-box">
-        <h1 style="color: #00e676; margin: 0;">TYPING BATTLE</h1>
+        <h1 style="color: #00e676; margin: 0 0 10px 0;">TYPING BATTLE</h1>
         <div id="rate-display">Rate: <span id="my-rate-val">0</span></div>
         <br>
         <input type="text" id="player-name" placeholder="YOUR NAME" maxlength="10">
@@ -55,16 +54,17 @@
             <button class="btn btn-pvp" onclick="joinGame('pvp')">1v1 ONLINE</button>
             <button class="btn btn-npc" onclick="joinGame('npc')">NPC MODE</button>
         </div>
+        <button class="btn btn-rank" id="toggle-rank-btn" onclick="toggleRanking()">SHOW RANKING</button>
     </div>
 
-    <div class="ranking-container">
+    <div id="ranking-area">
         <div class="ranking-board">
-            <h3>🏆 RATE RANKING</h3>
-            <div id="rate-ranking-list">Loading...</div>
+            <h3>🏆 RATE TOP 10</h3>
+            <div id="rate-list"></div>
         </div>
         <div class="ranking-board">
-            <h3>🔥 NPC HIGH SCORE</h3>
-            <div id="npc-ranking-list">Loading...</div>
+            <h3>🔥 NPC BEST 10</h3>
+            <div id="npc-list"></div>
         </div>
     </div>
 </div>
@@ -85,12 +85,13 @@
 
 <div id="result-overlay">
     <h1 id="win-lose-label" style="font-size: 5rem;"></h1>
-    <div id="rate-change"></div>
-    <div id="no-rate-reason" class="no-rate-msg"></div>
+    <div id="rate-change" style="font-size: 2rem;"></div>
+    <div id="no-rate-reason" style="color: #888; margin-top: 10px;"></div>
     <button class="btn btn-pvp" onclick="location.reload()">BACK TO LOBBY</button>
 </div>
 
 <script>
+    // Firebaseの設定（あなたの設定を維持）
     const firebaseConfig = {
         apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
         authDomain: "typing-game-5176f.firebaseapp.com",
@@ -114,7 +115,6 @@
         document.getElementById('player-name').value = localStorage.getItem('typing_name') || "";
         document.getElementById('room-input').value = localStorage.getItem('typing_room') || "";
         loadData();
-        updateRanking();
     };
 
     async function loadData() {
@@ -122,31 +122,48 @@
         questions = (await res.json()).sort(() => Math.random() - 0.5);
     }
 
-    // ランキングの更新
-    function updateRanking() {
-        // レートランキング (上位10名)
-        db.ref('rate_ranking').orderByValue().limitToLast(10).on('value', snap => {
-            const list = document.getElementById('rate-ranking-list');
+    // ランキングの表示・非表示を切り替え
+    function toggleRanking() {
+        const area = document.getElementById('ranking-area');
+        const btn = document.getElementById('toggle-rank-btn');
+        
+        if (area.style.display === 'flex') {
+            area.style.display = 'none';
+            btn.innerText = "SHOW RANKING";
+        } else {
+            area.style.display = 'flex';
+            btn.innerText = "HIDE RANKING";
+            fetchRanking(); // 表示する瞬間に最新データを取得
+        }
+    }
+
+    function fetchRanking() {
+        // レートランキング
+        db.ref('rate_ranking').orderByValue().limitToLast(10).once('value', snap => {
+            const list = document.getElementById('rate-list');
             list.innerHTML = "";
             let ranks = [];
-            snap.forEach(child => { ranks.push({name: child.key, val: child.val()}); });
+            snap.forEach(c => { ranks.push({n: c.key, v: c.val()}); });
             ranks.reverse().forEach(r => {
-                list.innerHTML += `<div class="rank-item"><span class="rank-name">${r.name}</span><span class="rank-val">${r.val}</span></div>`;
+                list.innerHTML += `<div class="rank-item"><span class="rank-name">${r.n}</span><span class="rank-val">${r.v}</span></div>`;
             });
+            if (!ranks.length) list.innerHTML = "No data yet.";
         });
 
-        // NPCスコアランキング (上位10名)
-        db.ref('npc_ranking').orderByValue().limitToLast(10).on('value', snap => {
-            const list = document.getElementById('npc-ranking-list');
+        // NPCスコアランキング
+        db.ref('npc_ranking').orderByValue().limitToLast(10).once('value', snap => {
+            const list = document.getElementById('npc-list');
             list.innerHTML = "";
             let ranks = [];
-            snap.forEach(child => { ranks.push({name: child.key, val: child.val()}); });
+            snap.forEach(c => { ranks.push({n: c.key, v: c.val()}); });
             ranks.reverse().forEach(r => {
-                list.innerHTML += `<div class="rank-item"><span class="rank-name">${r.name}</span><span class="rank-val">${r.val} pts</span></div>`;
+                list.innerHTML += `<div class="rank-item"><span class="rank-name">${r.n}</span><span class="rank-val">${r.v} pts</span></div>`;
             });
+            if (!ranks.length) list.innerHTML = "No data yet.";
         });
     }
 
+    // --- 以下、joinGame, startGame, render, finishGame 等のロジックは前回と同様 ---
     function joinGame(selectedMode) {
         mode = selectedMode;
         myName = document.getElementById('player-name').value.trim() || "Guest";
@@ -171,16 +188,15 @@
                 const opp = players[oppKey];
                 document.getElementById('display-opp-name').innerText = opp.name;
                 document.getElementById('opp-score').innerText = opp.score;
-                oppScore = opp.score;
-                oppRate = opp.rate || 0;
+                oppScore = opp.score; oppRate = opp.rate || 0;
                 if (!gameStarted) {
                     document.getElementById('target').innerText = "Press Key to READY";
-                    document.getElementById('trans').innerText = "READY?";
+                    document.getElementById('trans').innerText = "準備ができたらキーを押してください";
                 }
                 if (players[myId].ready && opp.ready && !gameStarted) startGame();
             } else {
                 document.getElementById('target').innerText = "WAITING...";
-                document.getElementById('trans').innerText = "WAITING...";
+                document.getElementById('trans').innerText = "対戦相手を待っています...";
             }
         });
     }
@@ -188,7 +204,7 @@
     function setupNPC() {
         document.getElementById('display-opp-name').innerText = "NPC (HARD)";
         document.getElementById('target').innerText = "Press Key to START";
-        document.getElementById('trans').innerText = "START?";
+        document.getElementById('trans').innerText = "キーを押すと開始します";
         document.getElementById('match-cancel-area').style.display = 'block';
     }
 
@@ -255,16 +271,14 @@
             localStorage.setItem('typing_rate', myRate);
             rateLabel.innerText = `Rate: ${myRate} (${baseChange >= 0 ? '+' : ''}${baseChange})`;
             reasonLabel.innerText = "";
-            // レートランキングを更新
             db.ref(`rate_ranking/${myName}`).set(myRate);
         } else if (mode === 'npc') {
             rateLabel.innerText = "Score: " + score;
-            reasonLabel.innerText = "NPC戦の結果をランキングに送信しました";
-            // NPCスコアランキングを更新
+            reasonLabel.innerText = "NPCスコアを送信しました";
             db.ref(`npc_ranking/${myName}`).transaction(current => (score > (current || 0)) ? score : current);
         } else {
-            rateLabel.innerText = "Rate: No Change";
-            reasonLabel.innerText = "プライベートルームではレートは変動しません";
+            rateLabel.innerText = "No Change";
+            reasonLabel.innerText = "プライベート戦は対象外です";
         }
         document.getElementById('result-overlay').style.display = 'flex';
     }
@@ -275,7 +289,6 @@
             if (mode === 'pvp' && !isReady) {
                 isReady = true;
                 db.ref(`rooms/${roomId}/players/${myId}/ready`).set(true);
-                document.getElementById('status-msg').innerText = "READY! Wait...";
             } else if (mode === 'npc') startGame();
             return;
         }
