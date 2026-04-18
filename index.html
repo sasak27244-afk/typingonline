@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=1280">
-    <title>English Typing Battle v1.10</title>
+    <title>English Typing Battle v1.11</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -45,7 +45,26 @@
         .current { border-bottom: 5px solid var(--primary); background: rgba(0, 230, 118, 0.1); }
         .correct { color: #555; }
 
-        #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.98); flex-direction: column; align-items: center; justify-content: center; z-index: 300; }
+        /* --- styleタグ内の以下の部分を修正・追記 --- */
+
+        #result-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.98);
+            flex-direction: column;
+            align-items: center;      /* 子要素を中央に寄せる */
+            justify-content: center;
+            z-index: 300;
+        }
+
+        /* ボタンが縦に伸びるのを防ぎ、サイズを固定する */
+        #result-overlay .btn {
+            width: 240px;            /* ボタンの横幅を固定 */
+            height: 50px;            /* ボタンの高さを固定 */
+            flex: none;              /* flexによる自動伸縮を無効化 */
+            margin-top: 20px;        /* 上のテキストとの間隔 */
+        }
     </style>
 </head>
 <body>
