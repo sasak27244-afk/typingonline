@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Typing Battle</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <style>
+        body { 
+            background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; overflow: hidden; transition: 0.3s;
+        }
+        /* スモーク（お邪魔）演出 */
+        .smoked { filter: blur(8px); }
+        
+        #game-container { text-align: center; width: 90%; max-width: 800px; position: relative; }
+        
+        #timer { font-size: 3rem; color: #ff5252; margin-bottom: 10px; font-weight: bold; }
+        #target { font-size: 2.4rem; min-height: 4rem; line-height: 1.4; margin-bottom: 20px; }
+        .correct { color: #ffffff; }
+        .current { border-bottom: 3px solid #00e676; }
+        .wrong { background: #ff5252; color: #fff; }
+
+        /* スコアエリア */
+        #score-board { display: flex; justify-content: space-between; width: 100%; margin-bottom: 20px; font-size: 1.2rem; }
+        .score-box { padding: 10px 20px; border-radius: 8px; background: #1e1e1e; border: 1px solid #333; }
+        #my-score-box { border-color: #00e676; }
+        #opp-score-box { border-color: #ff5252; }
+        .boost-active { color: #ffd700; text-shadow: 0 0 10px #ffd700; font-weight: bold; }
+
+        /* 終了後統計 */
+        #result-overlay { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+        }
+        .stat-row { display: flex; align-items: center; margin: 10px 0; width: 300px; }
+        .stat-bar { height: 20px; background: #00e676; margin-left: 10px; transition: 1s; width: 0; }
+
+        #trans { color: #00e676; font-size: 1.2rem; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="timer">60</div>
+        
+        <div id="score-board">
+            <div id="my-score-box" class="score-box">YOU: <span id="my-score">0</span> pts</div>
+            <div id="opp-score-box" class="score-box">OPPONENT: <span id="opp-score">0</span> pts</div>
+        </div>
+
+        <div id="target">Press Any Key to Start!</div>
+        <div id="trans"></div>
+    </div>
+
+    <div id="result-overlay">
+        <h1>GAME OVER</h1>
+        <div id="stats-container"></div>
+        <button onclick="location.reload()" style="margin-top:30px; padding:10px 20px; cursor:pointer;">REMATCH</button>
+    </div>
+
+    <script>
+        // --- Firebase Config (sasaki's settings) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
+            authDomain: "typing-game-5176f.firebaseapp.com",
+            projectId: "typing-game-5176f",
+            storageBucket: "typing-game-5176f.firebasestorage.app",
+            messagingSenderId: "20880910771",
+            appId: "1:20880910771:web:cf97c58cb713d5869943c6",
+            measurementId: "G-247PC6SEKX"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const roomId = "default_room"; // 簡易のため固定ルーム
+        const myId = "user_" + Math.floor(Math.random() * 1000);
+        const oppId = (myId === "user_1") ? "user_2" : "user_1"; // 簡易的な対戦相手判別
+
+        // --- Game Variables ---
+        let questions = [];
+        let qIdx = 0, charIdx = 0, score = 0, misses = 0, totalTyped = 0;
+        let timeLeft = 60;
+        let gameStarted = false;
+        let isBoost = false;
+
+        const targetEl = document.getElementById('target');
+        const timerEl = document.getElementById('timer');
+        const myScoreEl = document.getElementById('my-score');
+        const oppScoreEl = document.getElementById('opp-score');
+
+        // 問題の読み込み
+        async function loadQuestions() {
+            const res = await fetch('questions.json?v=' + Date.now());
+            questions = (await res.json()).sort(() => Math.random() - 0.5);
+        }
+
+        function startTimer() {
+            const interval = setInterval(() => {
+                timeLeft--;
+                timerEl.innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(interval);
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function render() {
+            const q = questions[qIdx];
+            targetEl.innerHTML = q.english.split('').map((c, i) => 
+                `<span class="${i === charIdx ? 'current' : (i < charIdx ? 'correct' : '')}">${c}</span>`).join('');
+            document.getElementById('trans').innerText = q.japanese;
+        }
+
+        function endGame() {
+            gameStarted = false;
+            document.getElementById('result-overlay').style.display = 'flex';
+            const acc = Math.floor((totalTyped / (totalTyped + misses)) * 100) || 0;
+            
+            document.getElementById('stats-container').innerHTML = `
+                <div class="stat-row">Speed (KPM): ${totalTyped} <div class="stat-bar" style="width:${totalTyped/5}px"></div></div>
+                <div class="stat-row">Accuracy: ${acc}% <div class="stat-bar" style="width:${acc * 2}px; background:#ffd700"></div></div>
+                <div class="stat-row">Score: ${score} pts</div>
+            `;
+        }
+
+        // Firebase同期
+        function syncScore() {
+            db.ref(`rooms/${roomId}/${myId}`).set({ score: score });
+        }
+
+        db.ref(`rooms/${roomId}`).on('value', (snapshot) => {
+            const data = snapshot.val();
+            for (let id in data) {
+                if (id !== myId) {
+                    const oppScore = data[id].score;
+                    oppScoreEl.innerText = oppScore;
+                    
+                    // お邪魔・ブーストロジック
+                    const diff = score - oppScore;
+                    document.body.classList.toggle('smoked', diff < -50); // 50点負けてたら画面がボヤける
+                    isBoost = (diff < -30); // 30点負けてたらブースト
+                    document.getElementById('my-score-box').classList.toggle('boost-active', isBoost);
+                }
+            }
+        });
+
+        window.addEventListener('keydown', e => {
+            if (!gameStarted && timeLeft === 60) {
+                gameStarted = true;
+                startTimer();
+                render();
+                return;
+            }
+            if (!gameStarted || e.key.length !== 1) return;
+
+            const q = questions[qIdx];
+            if (e.key === q.english[charIdx]) {
+                charIdx++;
+                score += isBoost ? 2 : 1;
+                totalTyped++;
+                if (charIdx >= q.english.length) {
+                    qIdx = (qIdx + 1) % questions.length;
+                    charIdx = 0;
+                }
+                render();
+                myScoreEl.innerText = score;
+                syncScore();
+            } else {
+                misses++;
+                targetEl.querySelectorAll('span')[charIdx].classList.add('wrong');
+                setTimeout(() => render(), 100);
+            }
+        });
+
+        loadQuestions();
+    </script>
+</body>
+</html>
