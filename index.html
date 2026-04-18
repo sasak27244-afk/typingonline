@@ -3,85 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Typing Battle - Engineering Edition</title>
+    <title>AI Typing Battle - Pro</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
         :root { --primary: #00e676; --error: #ff5252; --bg: #0d0d0d; --panel: #1a1a1a; }
         body { background: var(--bg); color: #eee; font-family: 'Consolas', monospace; margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         
-        /* ロビー */
+        /* ロビー UI */
         #lobby { position: fixed; inset: 0; background: #111; z-index: 200; display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 20px; }
-        .lobby-box { background: var(--panel); padding: 25px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 90%; max-width: 400px; margin-bottom: 20px; }
-        input[type="text"] { padding: 12px; font-size: 1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 85%; margin-bottom: 15px; outline: none; }
-        .btn { padding: 12px 20px; font-size: 0.9rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 5px; transition: 0.2s; }
+        .lobby-box { background: var(--panel); padding: 25px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 90%; max-width: 420px; margin-bottom: 20px; }
+        input[type="text"] { padding: 12px; font-size: 1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 85%; margin-bottom: 12px; outline: none; }
+        .btn { padding: 12px 20px; font-size: 0.9rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 5px; transition: 0.2s; min-width: 120px; }
         .btn-pvp { background: var(--primary); color: #000; }
         .btn-solo { background: #444; color: #fff; }
 
-        /* ランキング */
-        #ranking-area { display: flex; width: 100%; max-width: 900px; gap: 15px; flex-wrap: wrap; justify-content: center; }
-        .ranking-board { flex: 1; min-width: 300px; background: var(--panel); padding: 15px; border-radius: 12px; border: 1px solid #444; }
-        .ranking-board h3 { color: var(--primary); text-align: center; border-bottom: 2px solid #333; padding-bottom: 8px; margin-top: 0; }
-        .rank-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #222; font-size: 0.85rem; }
+        /* ランキング - 表示件数を確保 */
+        #ranking-area { display: flex; width: 100%; max-width: 900px; gap: 15px; flex-wrap: wrap; justify-content: center; padding-bottom: 40px; }
+        .ranking-board { flex: 1; min-width: 300px; background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid #444; min-height: 400px; }
+        .ranking-board h3 { color: var(--primary); text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-top: 0; }
+        .rank-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #222; font-size: 0.9rem; }
 
         /* ゲーム画面 */
         #game-view { display: none; text-align: center; width: 95%; max-width: 800px; position: relative; transition: filter 0.3s; }
-        #timer { font-size: 3rem; color: var(--error); font-weight: bold; }
-        #opp-display { display: none; color: var(--primary); margin-bottom: 10px; font-weight: bold; font-size: 1.2rem; }
+        #timer { font-size: 3.5rem; color: var(--error); font-weight: bold; margin: 10px 0; }
+        #opp-display { display: none; color: var(--primary); font-size: 1.3rem; margin-bottom: 15px; border: 1px solid var(--primary); padding: 5px; border-radius: 5px; }
 
         /* ミス表示 */
         .miss-info { display: flex; justify-content: space-between; max-width: 500px; margin: 0 auto; color: var(--error); font-weight: bold; font-size: 0.9rem; }
-        .miss-container { width: 100%; max-width: 500px; height: 10px; background: #333; margin: 5px auto 25px; border-radius: 5px; overflow: hidden; }
+        .miss-container { width: 100%; max-width: 500px; height: 12px; background: #333; margin: 5px auto 25px; border-radius: 6px; overflow: hidden; border: 1px solid #444; }
         #miss-bar { width: 0%; height: 100%; background: var(--error); transition: width 0.2s; }
 
-        /* スタン（ペナルティ）演出：背景ぼかし＋白文字 */
+        /* スタン演出：背景ぼかし＋白文字 */
         #stun-overlay { 
             display: none; position: fixed; inset: 0; z-index: 1000; 
             background: rgba(0, 0, 0, 0.4); 
             flex-direction: column; align-items: center; justify-content: center;
         }
         .stun-text { color: #ffffff; text-align: center; }
-        .stun-text h2 { font-size: 5rem; margin: 0; font-weight: 900; }
+        .stun-text h2 { font-size: 5rem; margin: 0; font-weight: 900; letter-spacing: 5px; }
         .stun-text p { font-size: 2.5rem; font-weight: bold; }
-        .is-stunned { filter: blur(15px); pointer-events: none; }
+        .is-stunned { filter: blur(20px); pointer-events: none; }
 
         /* テキスト表示 */
-        #target { font-size: 2.4rem; min-height: 4rem; margin-top: 10px; color: #fff; word-break: break-all; }
-        #trans { color: var(--primary); font-size: 1.4rem; margin-bottom: 30px; }
-        .current { border-bottom: 5px solid var(--primary); }
+        #target { font-size: 2.5rem; min-height: 4rem; color: #fff; word-break: break-all; margin: 20px 0; }
+        #trans { color: var(--primary); font-size: 1.5rem; min-height: 1.8rem; margin-bottom: 20px; }
+        .current { border-bottom: 5px solid var(--primary); background: rgba(0, 230, 118, 0.1); }
         .correct { color: #555; }
-        .wrong-char { color: var(--error) !important; background: rgba(255, 82, 82, 0.2); }
+        .wrong-char { color: var(--error) !important; text-decoration: underline; }
 
         #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.98); flex-direction: column; align-items: center; justify-content: center; z-index: 300; }
-        #mobile-input { position: absolute; opacity: 0; pointer-events: none; }
+        
+        /* スマホ用入力欄の全角対策 */
+        #mobile-input { 
+            position: absolute; opacity: 0; pointer-events: none; 
+            ime-mode: disabled; /* Legacy */
+        }
 
-        @media (max-width: 600px) { #target { font-size: 1.6rem; } #trans { font-size: 1rem; } }
+        @media (max-width: 600px) { #target { font-size: 1.8rem; } #trans { font-size: 1.1rem; } }
     </style>
 </head>
 <body>
 
-<input type="text" id="mobile-input" autocomplete="off">
+<input type="url" id="mobile-input" 
+       autocomplete="off" 
+       autocapitalize="off" 
+       autocorrect="off" 
+       spellcheck="false" 
+       inputmode="url">
 
 <div id="lobby">
     <div class="lobby-box">
-        <h1 style="color: var(--primary); margin: 0;">AI TYPING BATTLE</h1>
-        <p style="color: #ffd700; font-weight: bold;">My Rate: <span id="my-rate-val">---</span></p>
+        <h1 style="color: var(--primary); margin: 0; font-size: 2rem;">AI TYPING BATTLE</h1>
+        <p style="color: #ffd700; font-weight: bold; margin: 10px 0;">Your Rate: <span id="my-rate-val">---</span></p>
         <input type="text" id="player-name" placeholder="YOUR NAME" maxlength="10">
         <input type="text" id="room-id-input" placeholder="ROOM ID (Optional)" maxlength="15">
         <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
             <button class="btn btn-pvp" onclick="initPvP()">1v1 ONLINE</button>
             <button class="btn btn-solo" onclick="initSolo()">SOLO MODE</button>
         </div>
-        <p id="match-status" style="margin-top:15px; font-size:0.8rem; color:#888;"></p>
+        <p id="match-status" style="margin-top:15px; font-size:0.8rem; color:#888; min-height: 1rem;"></p>
     </div>
     <div id="ranking-area">
-        <div class="ranking-board"><h3>🏆 RATE TOP 10</h3><div id="rate-list"></div></div>
-        <div class="ranking-board"><h3>🔥 SOLO WPM TOP 10</h3><div id="solo-list"></div></div>
+        <div class="ranking-board"><h3>🏆 RATE RANKING</h3><div id="rate-list">Loading...</div></div>
+        <div class="ranking-board"><h3>🔥 SOLO WPM RANKING</h3><div id="solo-list">Loading...</div></div>
     </div>
 </div>
 
 <div id="game-view">
-    <div id="opp-display"><span id="opp-name">---</span>: <span id="opp-score">0</span></div>
+    <div id="opp-display"><span id="opp-name">---</span>: <span id="opp-score">0</span> pts</div>
     <div id="timer">60</div>
     <div class="miss-info"><span>MISS WARNING</span><span id="miss-text">0 / 10</span></div>
     <div class="miss-container"><div id="miss-bar"></div></div>
@@ -98,8 +108,8 @@
 </div>
 
 <div id="result-overlay">
-    <h1 id="res-title" style="font-size: 3rem; color: var(--primary);">FINISH!</h1>
-    <div id="final-stats" style="color: #fff; font-size: 1.4rem; text-align: center; margin: 20px 0; line-height: 1.8;"></div>
+    <h1 id="res-title" style="font-size: 3.5rem; color: var(--primary); margin: 0;">FINISH!</h1>
+    <div id="final-stats" style="color: #fff; font-size: 1.6rem; text-align: center; margin: 30px 0; line-height: 2;"></div>
     <button class="btn btn-pvp" onclick="location.reload()">BACK TO LOBBY</button>
 </div>
 
@@ -130,20 +140,24 @@
     };
 
     async function loadData() {
-        const res = await fetch('questions.json?v=' + Date.now());
-        questions = await res.json();
+        try {
+            const res = await fetch('questions.json?v=' + Date.now());
+            questions = await res.json();
+        } catch(e) { console.error("Data Load Error"); }
     }
 
     function updateRanking() {
-        db.ref('rate_ranking').orderByValue().limitToLast(10).once('value', s => {
-            let a = []; s.forEach(c => a.push({n:c.key, v:c.val()}));
-            a.sort((x,y)=>y.v-x.v);
-            document.getElementById('rate-list').innerHTML = a.map((r,i)=>`<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v}</span></div>`).join('');
+        // レート順位 (上位10名)
+        db.ref('rate_ranking').orderByValue().limitToLast(20).once('value', s => {
+            let a = []; s.forEach(c => { a.push({n:c.key, v:c.val()}); });
+            a.sort((x,y) => y.v - x.v);
+            document.getElementById('rate-list').innerHTML = a.slice(0, 10).map((r,i) => `<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v} pt</span></div>`).join('');
         });
-        db.ref('npc_ranking').orderByValue().limitToLast(10).once('value', s => {
-            let a = []; s.forEach(c => a.push({n:c.key, v:c.val()}));
-            a.sort((x,y)=>y.v-x.v);
-            document.getElementById('solo-list').innerHTML = a.map((r,i)=>`<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v} WPM</span></div>`).join('');
+        // WPM順位 (上位10名)
+        db.ref('npc_ranking').orderByValue().limitToLast(20).once('value', s => {
+            let a = []; s.forEach(c => { a.push({n:c.key, v:c.val()}); });
+            a.sort((x,y) => y.v - x.v);
+            document.getElementById('solo-list').innerHTML = a.slice(0, 10).map((r,i) => `<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v} WPM</span></div>`).join('');
         });
     }
 
@@ -153,7 +167,7 @@
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         document.getElementById('target').innerText = "Press Any Key to START";
-        document.getElementById('mobile-input').focus();
+        focusInput();
     }
 
     function setupUser() {
@@ -161,30 +175,30 @@
         localStorage.setItem('typing_name', myName);
     }
 
-    // --- PvP Logic with Room ID Support ---
     function initPvP() {
         mode = "pvp";
         setupUser();
         const customId = document.getElementById('room-id-input').value.trim();
-        document.getElementById('match-status').innerText = customId ? `Connecting to Room: ${customId}...` : "Matching...";
-
+        
         if (customId) {
-            // Room IDが指定されている場合：その部屋をチェック
-            roomId = customId;
-            db.ref(`rooms/${roomId}`).once('value', s => {
+            // Room ID 指定あり
+            roomId = "custom_" + customId;
+            const rRef = db.ref(`rooms/${roomId}`);
+            rRef.once('value', s => {
                 if (!s.exists() || !s.val().p1) {
                     pKey = "p1";
-                    db.ref(`rooms/${roomId}/p1`).set({ name: myName, score: 0, rate: myRate });
-                    document.getElementById('match-status').innerText = "Waiting for p2...";
-                    db.ref(`rooms/${roomId}/p2`).on('value', s2 => { if(s2.exists()) startPvP(); });
+                    rRef.child('p1').set({ name: myName, score: 0, rate: myRate });
+                    document.getElementById('match-status').innerText = "Waiting for Player 2...";
+                    rRef.child('p2').on('value', s2 => { if(s2.exists()) startPvP(); });
                 } else {
                     pKey = "p2";
-                    db.ref(`rooms/${roomId}/p2`).set({ name: myName, score: 0, rate: myRate });
+                    rRef.child('p2').set({ name: myName, score: 0, rate: myRate });
                     startPvP();
                 }
             });
         } else {
             // 自動マッチング
+            document.getElementById('match-status').innerText = "Finding Opponent...";
             db.ref('waiting_room').transaction(cur => {
                 if (cur) return null;
                 return { id: "room_" + Date.now(), name: myName, rate: myRate };
@@ -233,7 +247,7 @@
             document.getElementById('timer').innerText = --t;
             if(t <= 0) { clearInterval(i); finishGame(); }
         }, 1000);
-        document.getElementById('mobile-input').focus();
+        focusInput();
     }
 
     function render() {
@@ -258,7 +272,7 @@
             if (mode === "pvp") db.ref(`rooms/${roomId}/${pKey}`).update({ score: score });
         } else {
             missCount++;
-            if (missCount >= 10) triggerStun(); // 【修正】10回でスタン
+            if (missCount >= 10) triggerStun();
         }
         updateMissUI();
     }
@@ -281,15 +295,15 @@
                 document.getElementById('game-view').classList.remove('is-stunned');
                 document.getElementById('stun-overlay').style.display = 'none';
                 updateMissUI();
-                document.getElementById('mobile-input').focus();
+                focusInput();
             }
         }, 100);
     }
 
     function finishGame() {
         gameStarted = false;
-        // WPM算出公式: (正解数 / 5) / (経過時間 / 60)
-        const finalWPM = parseFloat(((score / 5) / (TIME_LIMIT / 60)).toFixed(1));
+        const wpm = (score / 5) / (TIME_LIMIT / 60);
+        const finalWPM = parseFloat(wpm.toFixed(1));
 
         if (mode === "pvp") {
             const oppKey = pKey === "p1" ? "p2" : "p1";
@@ -299,21 +313,20 @@
                 const myS = d[pKey].score, oppS = d[oppKey].score;
                 const oppRate = d[oppKey].rate || 1000;
 
-                // レート計算
                 let base = 30;
                 let adj = Math.floor((myRate - oppRate) / 100) * 2;
                 let change = 0, resTxt = "";
 
                 if (myS > oppS) {
                     change = base - adj;
-                    resTxt = `WIN (+${change})`; myRate += change;
+                    resTxt = `VICTORY! (+${change})`; myRate += change;
                 } else if (myS < oppS) {
                     change = base + adj;
-                    resTxt = `LOSE (-${change})`; myRate = Math.max(0, myRate - change);
+                    resTxt = `DEFEAT... (-${change})`; myRate = Math.max(0, myRate - change);
                 } else { resTxt = "DRAW"; }
 
                 document.getElementById('res-title').innerText = resTxt;
-                document.getElementById('final-stats').innerHTML = `Score: ${myS} vs ${oppS}<br>WPM: ${finalWPM}<br>New Rate: ${myRate}`;
+                document.getElementById('final-stats').innerHTML = `My Score: ${myS}<br>Opponent: ${oppS}<br>WPM: ${finalWPM}<br>New Rate: ${myRate}`;
                 
                 db.ref(`rate_ranking/${myName}`).set(myRate);
                 localStorage.setItem('typing_rate', myRate);
@@ -326,12 +339,30 @@
         document.getElementById('result-overlay').style.display = 'flex';
     }
 
+    function focusInput() {
+        const mi = document.getElementById('mobile-input');
+        mi.focus();
+        mi.click();
+    }
+
     window.addEventListener('keydown', e => {
         if (e.target.tagName === 'INPUT' && e.target.id !== 'mobile-input') return;
+        // 全角回避のため、半角キー以外をブロックする補助
+        if (e.key === 'Process' || e.key === '229') return; 
         handleInput(e.key);
     });
+
     document.getElementById('mobile-input').addEventListener('input', e => {
-        handleInput(e.target.value.slice(-1)); e.target.value = "";
+        const val = e.target.value;
+        if(val.length > 0) {
+            handleInput(val.slice(-1).toLowerCase()); // 強制的に小文字で扱う
+            e.target.value = ""; 
+        }
+    });
+
+    // 画面タップで入力を維持
+    document.body.addEventListener('touchstart', () => {
+        if(gameStarted && !isStunned) focusInput();
     });
 </script>
 </body>
