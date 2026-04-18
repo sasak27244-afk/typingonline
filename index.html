@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Typing Battle - Final</title>
+    <title>AI Typing Battle - Sync Fix</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -123,14 +123,26 @@
 
     let myName = "", mode = "pvp", roomId = "", myId = "u_" + Date.now();
     let questions = [], qIdx = 0, charIdx = 0, score = 0, oppScore = 0, myRate = 0;
-    let gameStarted = false, isReady = false, npcTimer;
+    let gameStarted = false, isReady = false, npcTimer = null;
 
     window.onload = () => {
-        myRate = parseInt(localStorage.getItem('typing_rate')) || 0;
-        document.getElementById('my-rate-val').innerText = myRate;
-        document.getElementById('player-name').value = localStorage.getItem('typing_name') || "";
+        // ロード時にレートを表示し、データベースへも同期
+        syncDataToLobby();
         loadData();
     };
+
+    function syncDataToLobby() {
+        myRate = parseInt(localStorage.getItem('typing_rate')) || 0;
+        myName = localStorage.getItem('typing_name') || "";
+        
+        document.getElementById('my-rate-val').innerText = myRate;
+        if(myName) {
+            document.getElementById('player-name').value = myName;
+            // ロビーにいる＝今のレートをDBに送る
+            db.ref(`rate_ranking/${myName}`).set(myRate);
+        }
+        fetchRankingData(); // 最新ランキングも取得
+    }
 
     async function loadData() {
         try {
@@ -199,9 +211,18 @@
         const timerInterval = setInterval(() => {
             timeLeft--;
             document.getElementById('timer').innerText = timeLeft;
-            if (timeLeft <= 0) { clearInterval(timerInterval); if(npcTimer) clearInterval(npcTimer); finishGame(); }
+            if (timeLeft <= 0) { 
+                clearInterval(timerInterval); 
+                if(npcTimer) clearInterval(npcTimer); 
+                finishGame(); 
+            }
         }, 1000);
-        if (mode === 'npc') npcTimer = setInterval(() => { oppScore++; document.getElementById('opp-score').innerText = oppScore; }, 850);
+        if (mode === 'npc') {
+            npcTimer = setInterval(() => { 
+                oppScore++; 
+                document.getElementById('opp-score').innerText = oppScore; 
+            }, 850);
+        }
     }
 
     function render() {
@@ -222,15 +243,11 @@
         else { label.innerText = "DRAW"; label.style.color = "#eee"; }
 
         if (mode === 'pvp') {
-            // PVPの結果でレート計算（勝てば+30, 負ければ-20）
             let change = (score > oppScore) ? 30 : (score < oppScore ? -20 : 0);
             myRate = Math.max(0, myRate + change);
             localStorage.setItem('typing_rate', myRate);
-            // データベースの rate_ranking に書き込み（ハイスコア更新形式ではなく、最新レートを反映）
-            db.ref(`rate_ranking/${myName}`).set(myRate);
             stats.innerText = `New Rate: ${myRate} (${change >= 0 ? '+' : ''}${change})`;
         } else if (mode === 'npc') {
-            // NPC戦はスコアを npc_ranking に保存
             db.ref(`npc_ranking/${myName}`).transaction(cur => (score > (cur || 0)) ? score : cur);
             stats.innerText = `Score: ${score} pts`;
         }
@@ -241,8 +258,12 @@
     window.addEventListener('keydown', e => {
         if (e.key.length !== 1) return;
         if (!gameStarted) {
-            if (mode === 'pvp' && !isReady) { isReady = true; db.ref(`rooms/${roomId}/players/${myId}/ready`).set(true); }
-            else if (mode === 'npc') startGame();
+            if (mode === 'pvp' && !isReady) { 
+                isReady = true; 
+                db.ref(`rooms/${roomId}/players/${myId}/ready`).set(true); 
+            } else if (mode === 'npc') {
+                startGame();
+            }
             return;
         }
         const q = questions[qIdx];
