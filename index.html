@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Typing Battle - Final Layout</title>
+    <title>AI Typing Battle - Final</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -18,7 +18,6 @@
             overflow: hidden; 
         }
         
-        /* ロビー：画面の上下左右中央 */
         #lobby { 
             position: fixed; 
             inset: 0; 
@@ -47,13 +46,12 @@
 
         #ranking-area { display: none; width: 90%; max-width: 800px; margin-top: 20px; gap: 15px; }
         .ranking-board { flex: 1; background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #444; }
+        .ranking-board h3 { color: #00e676; text-align: center; margin-top: 0; font-size: 1rem; }
         .rank-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #222; font-size: 0.85rem; }
 
-        /* ゲーム画面 */
         #game-view { display: none; text-align: center; width: 90%; max-width: 800px; }
         #timer { font-size: 4rem; color: #ff5252; font-weight: bold; }
         
-        /* ミスした文字のスタイル */
         .wrong-char {
             color: #ff5252 !important;
             background: rgba(255, 82, 82, 0.2);
@@ -99,12 +97,13 @@
     <div id="trans"></div>
     <div id="score-board">
         <div class="score-box">YOU: <span id="my-score">0</span></div>
-        <div class="score-box"><span id="display-opp-name">ENEMY</span>: <span id="opp-score">0</span></div>
+        <div class="score-box"><span id="display-opp-name">NPC</span>: <span id="opp-score">0</span></div>
     </div>
 </div>
 
 <div id="result-overlay">
     <h1 id="win-lose-label" style="font-size: 5rem;"></h1>
+    <div id="final-stats" style="color: #ffd700; font-size: 1.5rem; margin-bottom: 20px;"></div>
     <button class="btn btn-pvp" onclick="location.reload()">BACK TO LOBBY</button>
 </div>
 
@@ -134,8 +133,10 @@
     };
 
     async function loadData() {
-        const res = await fetch('questions.json?v=' + Date.now());
-        questions = (await res.json()).sort(() => Math.random() - 0.5);
+        try {
+            const res = await fetch('questions.json?v=' + Date.now());
+            questions = (await res.json()).sort(() => Math.random() - 0.5);
+        } catch(e) { console.error("Data load error", e); }
     }
 
     function toggleRanking() {
@@ -149,13 +150,13 @@
             let html = ""; let arr = [];
             snap.forEach(c => arr.push({n: c.key, v: c.val()}));
             arr.reverse().forEach(r => html += `<div class="rank-item"><span>${r.n}</span><span>${r.v}</span></div>`);
-            document.getElementById('rate-list').innerHTML = html;
+            document.getElementById('rate-list').innerHTML = html || "No data";
         });
         db.ref('npc_ranking').orderByValue().limitToLast(10).once('value', snap => {
             let html = ""; let arr = [];
             snap.forEach(c => arr.push({n: c.key, v: c.val()}));
             arr.reverse().forEach(r => html += `<div class="rank-item"><span>${r.n}</span><span>${r.v} pts</span></div>`);
-            document.getElementById('npc-list').innerHTML = html;
+            document.getElementById('npc-list').innerHTML = html || "No data";
         });
     }
 
@@ -187,7 +188,7 @@
     }
 
     function setupNPC() {
-        document.getElementById('display-opp-name').innerText = "NPC (HARD)";
+        document.getElementById('display-opp-name').innerText = "NPC";
         document.getElementById('target').innerText = "Press Any Key to START";
     }
 
@@ -214,18 +215,26 @@
     function finishGame() {
         gameStarted = false;
         const label = document.getElementById('win-lose-label');
+        const stats = document.getElementById('final-stats');
+        
         if (score > oppScore) { label.innerText = "YOU WIN!"; label.style.color = "#00e676"; }
         else if (score < oppScore) { label.innerText = "YOU LOSE..."; label.style.color = "#ff5252"; }
-        else { label.innerText = "DRAW"; }
+        else { label.innerText = "DRAW"; label.style.color = "#eee"; }
 
-        if (mode === 'pvp' && roomId === "lobby_global") {
-            let change = (score > oppScore) ? 30 : -20;
+        if (mode === 'pvp') {
+            // PVPの結果でレート計算（勝てば+30, 負ければ-20）
+            let change = (score > oppScore) ? 30 : (score < oppScore ? -20 : 0);
             myRate = Math.max(0, myRate + change);
             localStorage.setItem('typing_rate', myRate);
+            // データベースの rate_ranking に書き込み（ハイスコア更新形式ではなく、最新レートを反映）
             db.ref(`rate_ranking/${myName}`).set(myRate);
+            stats.innerText = `New Rate: ${myRate} (${change >= 0 ? '+' : ''}${change})`;
         } else if (mode === 'npc') {
+            // NPC戦はスコアを npc_ranking に保存
             db.ref(`npc_ranking/${myName}`).transaction(cur => (score > (cur || 0)) ? score : cur);
+            stats.innerText = `Score: ${score} pts`;
         }
+        
         document.getElementById('result-overlay').style.display = 'flex';
     }
 
@@ -246,7 +255,6 @@
             document.getElementById('my-score').innerText = score;
             if (mode === 'pvp') db.ref(`rooms/${roomId}/players/${myId}/score`).set(score);
         } else {
-            // ミス演出：文字を赤くするだけ
             const currentSpan = targetSpans[charIdx];
             if(currentSpan) {
                 currentSpan.classList.add('wrong-char');
