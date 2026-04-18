@@ -6,61 +6,81 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
-        body { background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
-        #lobby { position: fixed; inset: 0; background: #111; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; padding: 20px; text-align: center; }
-        .input-group { margin: 15px 0; }
-        input { padding: 12px; font-size: 1.1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 250px; }
-        .btn { padding: 12px 30px; font-size: 1.1rem; cursor: pointer; background: #00e676; border: none; color: #000; font-weight: bold; border-radius: 5px; margin: 10px; transition: 0.2s; }
-        .btn:hover { transform: scale(1.05); background: #00c853; }
+        body { 
+            background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; overflow: hidden; 
+        }
+        /* ロビー画面のスタイル */
+        #lobby { 
+            position: fixed; inset: 0; background: #111; z-index: 200;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .lobby-box { background: #1a1a1a; padding: 40px; border-radius: 15px; border: 1px solid #333; text-align: center; }
+        input { 
+            padding: 12px; font-size: 1.1rem; background: #222; border: 1px solid #444; 
+            color: #fff; border-radius: 5px; width: 280px; margin-bottom: 20px;
+        }
+        .btn { 
+            padding: 12px 30px; font-size: 1.1rem; cursor: pointer; border: none; 
+            border-radius: 5px; font-weight: bold; margin: 10px; transition: 0.2s; 
+        }
+        .btn-pvp { background: #00e676; color: #000; }
         .btn-npc { background: #666; color: #fff; }
+        .btn:hover { transform: scale(1.05); filter: brightness(1.2); }
 
         /* ゲーム画面 */
         #game-view { display: none; text-align: center; width: 90%; max-width: 800px; }
-        #timer { font-size: 3rem; color: #ff5252; font-weight: bold; }
-        #target { font-size: 2.2rem; min-height: 4rem; margin: 20px 0; }
-        .current { border-bottom: 3px solid #00e676; }
+        #timer { font-size: 4rem; color: #ff5252; font-weight: bold; margin-bottom: 10px; }
+        #target { font-size: 2.4rem; min-height: 5rem; margin-bottom: 20px; line-height: 1.4; }
+        .current { border-bottom: 4px solid #00e676; }
         .correct { color: #555; }
-        #score-board { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .score-box { padding: 10px; border: 1px solid #333; border-radius: 5px; min-width: 150px; background: #1a1a1a; }
+        .wrong { background: #ff5252; color: #fff; }
         
-        #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: center; z-index: 300; }
+        #score-board { display: flex; justify-content: space-between; margin-bottom: 20px; gap: 20px; }
+        .score-box { flex: 1; padding: 15px; background: #1a1a1a; border: 1px solid #333; border-radius: 10px; }
+        #status-msg { color: #ffd700; font-size: 1.5rem; margin-bottom: 10px; font-weight: bold; }
+        #result-overlay { 
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); 
+            flex-direction: column; align-items: center; justify-content: center; z-index: 300; 
+        }
     </style>
 </head>
 <body>
 
 <div id="lobby">
-    <h1>TYPING BATTLE LOBBY</h1>
-    <div class="input-group">
-        <input type="text" id="player-name" placeholder="Enter Your Name">
+    <div class="lobby-box">
+        <h1 style="color: #00e676; margin-bottom: 30px;">TYPING BATTLE LOBBY</h1>
+        <input type="text" id="player-name" placeholder="YOUR NAME" maxlength="10">
+        <br>
+        <input type="text" id="room-input" placeholder="ROOM ID (Optional)">
+        <div>
+            <button class="btn btn-pvp" onclick="joinGame('pvp')">1v1 ONLINE</button>
+            <button class="btn btn-npc" onclick="joinGame('npc')">NPC MODE (SOLO)</button>
+        </div>
+        <p style="color: #666; font-size: 0.9rem; margin-top: 15px;">※Room IDを指定すると友達と同じ部屋で対戦できます</p>
     </div>
-    <div class="input-group">
-        <input type="text" id="room-input" placeholder="Room ID (Optional)">
-    </div>
-    <div>
-        <button class="btn" onclick="joinGame('pvp')">1v1 ONLINE</button>
-        <button class="btn btn-npc" onclick="joinGame('npc')">NPC MODE (SOLO)</button>
-    </div>
-    <p style="color: #666; margin-top: 20px;">Room IDを指定すると友達と対戦できます</p>
 </div>
 
 <div id="game-view">
     <div id="timer">60</div>
-    <div id="status-msg" style="color:#ffd700; font-size: 1.2rem;">Ready?</div>
+    <div id="status-msg">READY?</div>
     <div id="score-board">
-        <div class="score-box"><span id="display-my-name">YOU</span>: <span id="my-score">0</span></div>
-        <div class="score-box"><span id="display-opp-name">ENEMY</span>: <span id="opp-score">0</span></div>
+        <div class="score-box" id="my-box"><span id="display-my-name">YOU</span>: <span id="my-score">0</span></div>
+        <div class="score-box" id="opp-box"><span id="display-opp-name">WAITING</span>: <span id="opp-score">0</span></div>
     </div>
-    <div id="target">Wait...</div>
-    <div id="trans" style="color:#00e676"></div>
+    <div id="target">Matching...</div>
+    <div id="trans" style="color: #00e676; font-size: 1.3rem;"></div>
 </div>
 
 <div id="result-overlay">
-    <h1 id="win-lose-label"></h1>
-    <div id="final-stats"></div>
-    <button class="btn" onclick="location.reload()">Back to Lobby</button>
+    <h1 id="win-lose-label" style="font-size: 5rem;"></h1>
+    <div id="final-stats" style="font-size: 1.5rem; margin-bottom: 30px;"></div>
+    <button class="btn btn-pvp" onclick="location.reload()">BACK TO LOBBY</button>
 </div>
 
 <script>
+    // --- Firebase Configuration ---
     const firebaseConfig = {
         apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
         authDomain: "typing-game-5176f.firebaseapp.com",
@@ -74,20 +94,23 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    let myName = "Unknown", mode = "pvp", roomId = "lobby", myId = "u_" + Date.now();
-    let questions = [], qIdx = 0, charIdx = 0, score = 0, oppScore = 0, gameStarted = false, isReady = false;
-    let npcInterval;
+    let myName = "Player", mode = "pvp", roomId = "lobby", myId = "u_" + Math.floor(Math.random()*10000);
+    let questions = [], qIdx = 0, charIdx = 0, score = 0, oppScore = 0;
+    let gameStarted = false, isReady = false;
+    let npcTimer;
 
-    async function initQuestions() {
+    // 問題取得
+    async function loadData() {
         const res = await fetch('questions.json?v=' + Date.now());
         questions = (await res.json()).sort(() => Math.random() - 0.5);
     }
 
+    // ゲーム参加
     function joinGame(selectedMode) {
         mode = selectedMode;
-        myName = document.getElementById('player-name').value || "Player";
-        roomId = document.getElementById('room-input').value || "lobby";
-        
+        myName = document.getElementById('player-name').value.trim() || "Guest_" + myId.slice(-3);
+        roomId = document.getElementById('room-input').value.trim() || "default";
+
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         document.getElementById('display-my-name').innerText = myName;
@@ -99,6 +122,7 @@
         }
     }
 
+    // PVP設定
     function setupPVP() {
         db.ref(`rooms/${roomId}/players/${myId}`).set({ name: myName, score: 0, ready: false });
         db.ref(`rooms/${roomId}/players/${myId}`).onDisconnect().remove();
@@ -112,39 +136,42 @@
                 document.getElementById('display-opp-name').innerText = opp.name;
                 document.getElementById('opp-score').innerText = opp.score;
                 oppScore = opp.score;
-                if (!gameStarted) document.getElementById('target').innerText = "Press Any Key to Ready";
+                if (!gameStarted) document.getElementById('target').innerText = "Press Any Key to READY";
                 if (players[myId].ready && opp.ready && !gameStarted) startGame();
             } else {
-                document.getElementById('target').innerText = "Waiting for Opponent...";
+                document.getElementById('target').innerText = "WAITING FOR OPPONENT...";
             }
         });
     }
 
+    // NPC設定
     function setupNPC() {
-        document.getElementById('display-opp-name').innerText = "NPC (CPU)";
-        document.getElementById('target').innerText = "Press Any Key to Start";
+        document.getElementById('display-opp-name').innerText = "NPC (HARD)";
+        document.getElementById('target').innerText = "Press Any Key to START";
     }
 
+    // 開始
     function startGame() {
         gameStarted = true;
         document.getElementById('status-msg').innerText = "GO!";
         render();
         let timeLeft = 60;
-        const interval = setInterval(() => {
+        const timerInterval = setInterval(() => {
             timeLeft--;
             document.getElementById('timer').innerText = timeLeft;
             if (timeLeft <= 0) {
-                clearInterval(interval);
-                if (npcInterval) clearInterval(npcInterval);
+                clearInterval(timerInterval);
+                if (npcTimer) clearInterval(npcTimer);
                 finishGame();
             }
         }, 1000);
 
         if (mode === 'npc') {
-            npcInterval = setInterval(() => {
-                oppScore += Math.floor(Math.random() * 2); // NPCがたまにスコア加算
+            // NPCが0.7〜1.2秒おきに1点獲得
+            npcTimer = setInterval(() => {
+                oppScore++;
                 document.getElementById('opp-score').innerText = oppScore;
-            }, 800);
+            }, 800 + Math.random() * 400);
         }
     }
 
@@ -162,17 +189,23 @@
         else if (score < oppScore) { label.innerText = "YOU LOSE..."; label.style.color = "#ff5252"; }
         else { label.innerText = "DRAW"; label.style.color = "#fff"; }
         
+        document.getElementById('final-stats').innerText = `YOUR SCORE: ${score} pts / ENEMY: ${oppScore} pts`;
         document.getElementById('result-overlay').style.display = 'flex';
-        db.ref('ranking').push({ name: myName, score: score });
+        
+        // ランキング登録
+        db.ref('ranking').push({ name: myName, score: score, date: Date.now() });
     }
 
     window.addEventListener('keydown', e => {
         if (e.key.length !== 1) return;
+        
         if (!gameStarted) {
-            if (mode === 'pvp' && !isReady) {
-                isReady = true;
-                db.ref(`rooms/${roomId}/players/${myId}/ready`).set(true);
-                document.getElementById('status-msg').innerText = "Ready! Waiting...";
+            if (mode === 'pvp') {
+                if (!isReady) {
+                    isReady = true;
+                    db.ref(`rooms/${roomId}/players/${myId}/ready`).set(true);
+                    document.getElementById('status-msg').innerText = "READY! (Wait for Opponent)";
+                }
             } else if (mode === 'npc') {
                 startGame();
             }
@@ -183,14 +216,21 @@
         if (e.key === q.english[charIdx]) {
             charIdx++;
             score++;
-            if (charIdx >= q.english.length) { qIdx = (qIdx + 1) % questions.length; charIdx = 0; }
+            if (charIdx >= q.english.length) {
+                qIdx = (qIdx + 1) % questions.length;
+                charIdx = 0;
+            }
             render();
             document.getElementById('my-score').innerText = score;
             if (mode === 'pvp') db.ref(`rooms/${roomId}/players/${myId}/score`).set(score);
+        } else {
+            // ミス演出
+            document.querySelectorAll('#target span')[charIdx].classList.add('wrong');
+            setTimeout(() => render(), 100);
         }
     });
 
-    initQuestions();
+    loadData();
 </script>
 </body>
 </html>
