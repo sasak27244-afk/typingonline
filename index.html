@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Typing Battle - Complete Edition</title>
+    <title>AI Typing Battle - Translation Fixed</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -18,8 +18,8 @@
         #rate-display { color: #ffd700; font-size: 1.5rem; margin-top: 10px; font-weight: bold; }
         #game-view { display: none; text-align: center; width: 90%; max-width: 800px; }
         #timer { font-size: 4rem; color: #ff5252; font-weight: bold; }
-        #target { font-size: 2.4rem; min-height: 3rem; line-height: 1.4; margin-top: 20px; }
-        #trans { color: #00e676; font-size: 1.4rem; min-height: 2rem; margin-bottom: 20px; }
+        #target { font-size: 2.4rem; min-height: 3.5rem; line-height: 1.4; margin-top: 20px; }
+        #trans { color: #00e676; font-size: 1.6rem; min-height: 2.5rem; margin-bottom: 20px; font-weight: bold; }
         .current { border-bottom: 4px solid #00e676; }
         .correct { color: #555; }
         .wrong { background: #ff5252; color: #fff; }
@@ -53,8 +53,7 @@
     <div id="timer">60</div>
     <div id="status-msg" style="color:#ffd700; font-weight:bold; font-size: 1.2rem;">READY?</div>
     <div id="target">Wait...</div>
-    <div id="trans"></div>
-    <div id="score-board">
+    <div id="trans"></div> <div id="score-board">
         <div class="score-box"><span id="display-my-name">YOU</span>: <span id="my-score">0</span></div>
         <div class="score-box"><span id="display-opp-name">ENEMY</span>: <span id="opp-score">0</span></div>
     </div>
@@ -97,8 +96,10 @@
     };
 
     async function loadData() {
-        const res = await fetch('questions.json?v=' + Date.now());
-        questions = (await res.json()).sort(() => Math.random() - 0.5);
+        try {
+            const res = await fetch('questions.json?v=' + Date.now());
+            questions = (await res.json()).sort(() => Math.random() - 0.5);
+        } catch(e) { console.error("Failed to load questions.json", e); }
     }
 
     function joinGame(selectedMode) {
@@ -127,12 +128,14 @@
                 document.getElementById('opp-score').innerText = opp.score;
                 oppScore = opp.score;
                 oppRate = opp.rate || 0;
-                if (!gameStarted) document.getElementById('target').innerText = "Press Key to READY";
+                if (!gameStarted) {
+                    document.getElementById('target').innerText = "Press Key to READY";
+                    document.getElementById('trans').innerText = "準備ができたらキーを押してください";
+                }
                 if (players[myId].ready && opp.ready && !gameStarted) startGame();
             } else {
                 document.getElementById('target').innerText = "WAITING...";
-                document.getElementById('display-opp-name').innerText = "WAITING";
-                document.getElementById('opp-score').innerText = "0";
+                document.getElementById('trans').innerText = "対戦相手を待っています...";
             }
         });
     }
@@ -140,6 +143,7 @@
     function setupNPC() {
         document.getElementById('display-opp-name').innerText = "NPC (HARD)";
         document.getElementById('target').innerText = "Press Key to START";
+        document.getElementById('trans').innerText = "キーを押すと開始します";
         document.getElementById('match-cancel-area').style.display = 'block';
     }
 
@@ -152,10 +156,11 @@
     }
 
     function startGame() {
+        if (gameStarted) return;
         gameStarted = true;
         document.getElementById('match-cancel-area').style.display = 'none';
         document.getElementById('status-msg').innerText = "GO!";
-        render();
+        render(); // ここで最初の問題を表示
         let timeLeft = 60;
         const timerInterval = setInterval(() => {
             timeLeft--;
@@ -175,10 +180,13 @@
     }
 
     function render() {
+        if (!questions.length) return;
         const q = questions[qIdx];
+        // 英文表示
         document.getElementById('target').innerHTML = q.english.split('').map((c, i) => 
             `<span class="${i === charIdx ? 'current' : (i < charIdx ? 'correct' : '')}">${c}</span>`).join('');
-        document.getElementById('trans').innerText = q.japanese; // 和訳を更新
+        // 和訳表示（ここが重要）
+        document.getElementById('trans').innerText = q.japanese;
     }
 
     function finishGame() {
@@ -187,6 +195,7 @@
         const rateLabel = document.getElementById('rate-change');
         const reasonLabel = document.getElementById('no-rate-reason');
         const isOfficialMatch = (mode === 'pvp' && roomId === "lobby_global");
+        
         let baseChange = 0;
         if (score > oppScore) {
             label.innerText = "YOU WIN!"; label.style.color = "#00e676";
@@ -218,7 +227,9 @@
                 isReady = true;
                 db.ref(`rooms/${roomId}/players/${myId}/ready`).set(true);
                 document.getElementById('status-msg').innerText = "READY! Wait...";
-            } else if (mode === 'npc') startGame();
+            } else if (mode === 'npc') {
+                startGame();
+            }
             return;
         }
         const q = questions[qIdx];
