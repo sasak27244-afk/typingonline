@@ -104,6 +104,7 @@
 
     let myName = "", mode = "solo", myRate = 0, roomId = null, pKey = "p1", questions = [];
     let qIdx = 0, charIdx = 0, score = 0, gameStarted = false, isStunned = false, missCount = 0, gameTimer = null;
+    let isReady = false, readyTimeout = null, customRoomFlag = false;
     const TIME_LIMIT = 60;
 
     window.onload = () => {
@@ -147,11 +148,13 @@
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         document.getElementById('target').innerText = "Press Any Key to START";
+        isReady = false;
     }
 
     function backToLobby() {
         if(gameTimer) clearInterval(gameTimer);
-        gameStarted = false; score = 0; missCount = 0;
+        if(readyTimeout) clearTimeout(readyTimeout);
+        gameStarted = false; score = 0; missCount = 0; isReady = false;
         if(roomId) db.ref(`rooms/${roomId}`).off();
         document.getElementById('my-score').innerText = "0";
         document.getElementById('timer').innerText = "60";
@@ -164,8 +167,8 @@
         mode = "pvp";
         setupUser();
         const customId = document.getElementById('room-id-input').value.trim();
+        customRoomFlag = customId !== "";
         
-        // UI Lock
         document.getElementById('btn-pvp-start').style.display = 'none';
         document.getElementById('btn-solo-start').style.display = 'none';
         document.getElementById('btn-cancel').style.display = 'inline-block';
@@ -173,41 +176,38 @@
         document.getElementById('room-id-input').disabled = true;
         document.getElementById('match-status').innerText = "SEARCHING...";
 
-        if (customId) {
+        if (customRoomFlag) {
             roomId = "custom_" + customId;
             const rRef = db.ref(`rooms/${roomId}`);
             rRef.once('value', s => {
                 const data = s.val();
                 if (!data || !data.p1) {
                     pKey = "p1";
-                    rRef.update({ p1: { name: myName, score: 0, rate: myRate } });
-                    rRef.child('p2').on('value', snap => { if(snap.exists()) startPvP(); });
+                    rRef.update({ p1: { name: myName, score: 0, rate: myRate, ready: false } });
+                    rRef.child('p2').on('value', snap => { if(snap.exists()) setupMatchUI(); });
                 } else {
                     pKey = "p2";
-                    rRef.update({ p2: { name: myName, score: 0, rate: myRate } });
-                    startPvP();
+                    rRef.update({ p2: { name: myName, score: 0, rate: myRate, ready: false } });
+                    setupMatchUI();
                 }
             });
         } else {
-            // 野良マッチング
             db.ref('waiting_room').transaction(cur => {
-                if (cur) return null; // 誰かいたら自分が子機になる
+                if (cur) return null;
                 return { id: "room_" + Date.now(), name: myName, rate: myRate };
             }, (err, committed, snap) => {
                 if (committed && snap.val() && snap.val().name === myName) {
-                    // 親機として待機
                     roomId = snap.val().id; pKey = "p1";
-                    db.ref(`rooms/${roomId}/p1`).set({ name: myName, score: 0, rate: myRate });
-                    db.ref(`rooms/${roomId}/p2`).on('value', s => { if(s.exists()) startPvP(); });
+                    db.ref(`rooms/${roomId}/p1`).set({ name: myName, score: 0, rate: myRate, ready: false });
+                    db.ref(`rooms/${roomId}/p2`).on('value', s => { if(s.exists()) setupMatchUI(); });
                 } else {
-                    // 子機として参加
                     db.ref('waiting_room').once('value', s => {
                         const waitData = s.val();
                         if(!waitData) { cancelMatching(); return; }
                         roomId = waitData.id; pKey = "p2";
-                        db.ref(`rooms/${roomId}/p2`).set({ name: myName, score: 0, rate: myRate });
+                        db.ref(`rooms/${roomId}/p2`).set({ name: myName, score: 0, rate: myRate, ready: false });
                         db.ref('waiting_room').remove();
-                        startPvP();
+                        setupMatchUI();
                     });
                 }
             });
@@ -231,11 +231,12 @@
         document.getElementById('match-status').innerText = "";
     }
 
-    function startPvP() {
+    function setupMatchUI() {
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         document.getElementById('opp-display').style.display = 'block';
         document.getElementById('solo-back-btn').style.display = 'none';
+        document.getElementById('target').innerText = "Press Any Key to READY";
         
         const oppKey = pKey === "p1" ? "p2" : "p1";
         db.ref(`rooms/${roomId}/${oppKey}`).on('value', s => {
@@ -246,6 +247,30 @@
             }
         });
 
+        // 10秒放置でロビーへ
+        isReady = false;
+        readyTimeout = setTimeout(() => {
+            if(!isReady) backToLobby();
+        }, 10000);
+    }
+
+    function setReady() {
+        if(isReady) return;
+        isReady = true;
+        if(readyTimeout) clearTimeout(readyTimeout);
+        db.ref(`rooms/${roomId}/${pKey}`).update({ ready: true });
+        document.getElementById('target').innerText = "WAITING FOR OPPONENT...";
+
+        db.ref(`rooms/${roomId}`).on('value', s => {
+            const d = s.val();
+            if(d && d.p1 && d.p2 && d.p1.ready && d.p2.ready) {
+                db.ref(`rooms/${roomId}`).off('value');
+                startPvPCountdown();
+            }
+        });
+    }
+
+    function startPvPCountdown() {
         let countdown = 3;
         const timerInt = setInterval(() => {
             document.getElementById('target').innerText = countdown;
@@ -276,8 +301,12 @@
     }
 
     function handleInput(key) {
-        if (!gameStarted && mode === "solo") { startGame(); return; }
-        if (!gameStarted || isStunned || key.length !== 1) return;
+        if (!gameStarted) {
+            if(mode === "solo") { startGame(); }
+            else if(mode === "pvp") { setReady(); }
+            return;
+        }
+        if (isStunned || key.length !== 1) return;
 
         const q = questions[qIdx];
         if (key === q.english[charIdx]) {
@@ -306,7 +335,7 @@
         let r = 2.0;
         const i = setInterval(() => {
             r -= 0.1;
-            document.getElementById('stun-timer').innerText = r.toFixed(1);
+            document.getElementById('stun-timer').innerText = Math.max(0, r).toFixed(1);
             if (r <= 0) {
                 clearInterval(i); isStunned = false; missCount = 0;
                 document.getElementById('game-view').classList.remove('is-stunned');
@@ -330,23 +359,27 @@
                 const myS = d[pKey].score, oppS = d[oppKey].score;
                 const oppRate = d[oppKey].rate || 0;
 
-                let base = 30;
-                let adj = Math.floor((myRate - oppRate) / 100) * 2;
-                let change = 0, resTxt = "";
+                let resTxt = "";
+                if (myS > oppS) resTxt = "VICTORY!";
+                else if (myS < oppS) resTxt = "DEFEAT...";
+                else resTxt = "DRAW";
 
-                if (myS > oppS) {
-                    change = base - adj;
-                    resTxt = `VICTORY! (+${change})`; myRate += change;
-                } else if (myS < oppS) {
-                    change = base + adj;
-                    resTxt = `DEFEAT... (-${change})`; myRate = Math.max(0, myRate - change);
-                } else { resTxt = "DRAW"; }
+                // カスタムルーム以外（野良）のみレートを計算・更新
+                if (!customRoomFlag) {
+                    let base = 30;
+                    let adj = Math.floor((myRate - oppRate) / 100) * 2;
+                    let change = 0;
+                    if (myS > oppS) { change = base - adj; myRate += change; resTxt += ` (+${change})`; }
+                    else if (myS < oppS) { change = base + adj; myRate = Math.max(0, myRate - change); resTxt += ` (-${change})`; }
+                    
+                    db.ref(`rate_ranking/${myName}`).set(myRate);
+                    localStorage.setItem('typing_rate', myRate);
+                } else {
+                    resTxt += " (Rate Unchanged)";
+                }
 
                 document.getElementById('res-title').innerText = resTxt;
-                document.getElementById('final-stats').innerHTML = `My Score: ${myS}<br>Opponent: ${oppS}<br>WPM: ${finalWPM}<br>New Rate: ${myRate}`;
-                
-                db.ref(`rate_ranking/${myName}`).set(myRate);
-                localStorage.setItem('typing_rate', myRate);
+                document.getElementById('final-stats').innerHTML = `My Score: ${myS}<br>Opponent: ${oppS}<br>WPM: ${finalWPM}<br>Current Rate: ${myRate}`;
                 db.ref(`rooms/${roomId}`).remove();
             });
         } else {
