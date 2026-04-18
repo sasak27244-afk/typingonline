@@ -2,15 +2,15 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Typing Battle - Solo Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Typing Battle - Professional Edition</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
-        body { background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        body { background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; touch-action: manipulation; }
         
-        /* ロビー画面 */
         #lobby { position: fixed; inset: 0; background: #111; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .lobby-box { background: #1a1a1a; padding: 40px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+        .lobby-box { background: #1a1a1a; padding: 30px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 90%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
         
         input { padding: 12px; font-size: 1.1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 80%; margin-bottom: 15px; outline: none; }
         .btn { padding: 12px 30px; font-size: 1.1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 10px; transition: 0.2s; }
@@ -18,71 +18,76 @@
         .btn-solo { background: #444; color: #fff; }
         .btn-rank-toggle { background: #222; color: #00e676; border: 2px solid #00e676; width: 90%; margin-top: 20px; }
 
-        /* ランキングエリア */
-        #ranking-area { display: none; width: 90%; max-width: 800px; margin-top: 20px; gap: 15px; }
-        .ranking-board { flex: 1; background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #444; }
-        .ranking-board h3 { color: #00e676; text-align: center; margin-top: 0; font-size: 1rem; }
-        .rank-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #222; font-size: 0.85rem; }
+        /* ミスゲージ */
+        .miss-container { width: 100%; max-width: 400px; height: 8px; background: #333; margin: 15px auto; border-radius: 4px; overflow: hidden; }
+        #miss-bar { width: 0%; height: 100%; background: #ff5252; transition: width 0.2s; }
 
-        /* ゲーム画面 */
-        #game-view { display: none; text-align: center; width: 90%; max-width: 800px; }
-        #timer { font-size: 4rem; color: #ff5252; font-weight: bold; }
-        
-        .wrong-char { color: #ff5252 !important; background: rgba(255, 82, 82, 0.2); border-radius: 4px; }
-        #target { font-size: 2.8rem; min-height: 4rem; margin-top: 20px; }
-        #trans { color: #00e676; font-size: 1.6rem; margin-bottom: 25px; font-weight: bold; }
-        .current { border-bottom: 5px solid #00e676; }
+        /* スマホ用隠しインプット */
+        #mobile-input { position: absolute; opacity: 0; pointer-events: none; left: -9999px; }
+
+        /* ゲームビュー */
+        #game-view { display: none; text-align: center; width: 95%; max-width: 800px; transition: 0.3s; }
+        .stunned { filter: grayscale(1) blur(2px) opacity(0.5); pointer-events: none; }
+
+        #timer { font-size: 3rem; color: #ff5252; font-weight: bold; }
+        #target { font-size: 2.5rem; min-height: 3.5rem; margin-top: 15px; word-break: break-all; }
+        #trans { color: #00e676; font-size: 1.4rem; margin-bottom: 20px; }
+        .current { border-bottom: 4px solid #00e676; }
         .correct { color: #444; }
-        
-        .score-box { flex: 1; padding: 20px; background: #1a1a1a; border: 4px solid #00e676; border-radius: 12px; font-size: 2rem; font-weight: bold; }
+        .wrong-char { color: #ff5252 !important; background: rgba(255, 82, 82, 0.2); }
+
+        /* レスポンシブ調整 */
+        @media (max-width: 600px) {
+            #target { font-size: 1.8rem; }
+            #timer { font-size: 2.2rem; }
+            .lobby-box { padding: 20px; }
+            #ranking-area { flex-direction: column; overflow-y: auto; max-height: 50vh; }
+        }
+
+        #ranking-area { display: none; width: 90%; max-width: 800px; margin-top: 20px; gap: 10px; }
+        .ranking-board { flex: 1; background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #444; }
+        .rank-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #222; font-size: 0.8rem; }
         #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: center; z-index: 300; }
     </style>
 </head>
 <body>
 
+<input type="text" id="mobile-input" autocomplete="off">
+
 <div id="lobby">
     <div class="lobby-box">
-        <h1 style="color: #00e676; margin: 0 0 15px 0;">TYPING BATTLE</h1>
-        <div style="color: #ffd700; font-weight: bold; font-size: 1.2rem;">Your Rate: <span id="my-rate-val">0</span></div>
+        <h1 style="color: #00e676; margin: 0 0 10px 0;">TYPING BATTLE</h1>
+        <div style="color: #ffd700; font-weight: bold;">Your Rate: <span id="my-rate-val">0</span></div>
         <br>
         <input type="text" id="player-name" placeholder="YOUR NAME" maxlength="10">
-        <br>
-        <input type="text" id="room-input" placeholder="ROOM ID (Optional)">
-        <div style="display: flex; justify-content: center;">
+        <div style="display: flex; justify-content: center; flex-wrap: wrap;">
             <button class="btn btn-pvp" onclick="joinGame('pvp')">1v1 ONLINE</button>
             <button class="btn btn-solo" onclick="joinGame('solo')">SOLO MODE</button>
         </div>
-        <button id="toggle-rank-btn" class="btn btn-rank-toggle" onclick="toggleRanking()">🏆 VIEW RANKINGS</button>
+        <button class="btn btn-rank-toggle" onclick="toggleRanking()">🏆 VIEW RANKINGS</button>
     </div>
-
     <div id="ranking-area">
-        <div class="ranking-board">
-            <h3>RATE TOP 10</h3>
-            <div id="rate-list">Loading...</div>
-        </div>
-        <div class="ranking-board">
-            <h3>SOLO BEST 10</h3>
-            <div id="solo-list">Loading...</div>
-        </div>
+        <div class="ranking-board"><h3>RATE TOP 10</h3><div id="rate-list"></div></div>
+        <div class="ranking-board"><h3>SOLO BEST 10</h3><div id="solo-list"></div></div>
     </div>
 </div>
 
 <div id="game-view">
     <div id="timer">60</div>
+    <div class="miss-container"><div id="miss-bar"></div></div>
     <div id="target">Wait...</div>
     <div id="trans"></div>
-    <div style="display: flex; justify-content: center;">
-        <div class="score-box">SCORE: <span id="my-score">0</span></div>
-    </div>
+    <div class="score-box" style="font-size: 1.5rem; font-weight: bold;">SCORE: <span id="my-score">0</span></div>
 </div>
 
 <div id="result-overlay">
-    <h1 id="win-lose-label" style="font-size: 5rem;">FINISH!</h1>
-    <div id="final-stats" style="color: #ffd700; font-size: 1.5rem; margin-bottom: 20px;"></div>
+    <h1 style="font-size: 3rem; color: #00e676;">GAME FINISH!</h1>
+    <div id="final-stats" style="color: #ffd700; font-size: 1.5rem; text-align: center; line-height: 1.6;"></div>
     <button class="btn btn-pvp" onclick="location.reload()">BACK TO LOBBY</button>
 </div>
 
 <script>
+    // --- Firebase設定 (あなたの環境のまま) ---
     const firebaseConfig = {
         apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
         authDomain: "typing-game-5176f.firebaseapp.com",
@@ -92,109 +97,71 @@
         messagingSenderId: "20880910771",
         appId: "1:20880910771:web:cf97c58cb713d5869943c6"
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    let myName = "", mode = "solo", roomId = "", myId = "u_" + Date.now();
-    let questions = [], qIdx = 0, charIdx = 0, score = 0, myRate = 0;
-    let gameStarted = false, isReady = false;
+    let myName = "", mode = "solo", myRate = 0;
+    let questions = [], qIdx = 0, charIdx = 0, score = 0, gameStarted = false;
+    let missCount = 0, isStunned = false;
+    const MAX_MISS = 10;
+    const GAME_TIME = 60;
 
     window.onload = () => {
         myRate = parseInt(localStorage.getItem('typing_rate')) || 0;
         document.getElementById('my-rate-val').innerText = myRate;
-        
         const savedName = localStorage.getItem('typing_name');
         if(savedName) {
             document.getElementById('player-name').value = savedName;
             myName = savedName;
-            syncToDatabase(savedName, myRate);
+            db.ref(`rate_ranking/${myName}`).set(myRate);
         }
         loadData();
         fetchRankingData();
     };
 
-    function syncToDatabase(name, rate) {
-        if(!name) return;
-        // データベースに即時反映
-        db.ref(`rate_ranking/${name}`).set(rate).then(() => {
-            console.log("Sync complete");
-            fetchRankingData(); 
-        });
-    }
-
     async function loadData() {
         try {
             const res = await fetch('questions.json?v=' + Date.now());
             questions = (await res.json()).sort(() => Math.random() - 0.5);
-        } catch(e) { console.error("Data load error", e); }
+        } catch(e) { console.error(e); }
     }
 
     function toggleRanking() {
         const area = document.getElementById('ranking-area');
         area.style.display = (area.style.display === 'flex') ? 'none' : 'flex';
-        if(area.style.display === 'flex') fetchRankingData();
     }
 
     function fetchRankingData() {
-        // RATEランキング取得
         db.ref('rate_ranking').once('value', snap => {
-            let arr = [];
-            snap.forEach(child => { arr.push({ n: child.key, v: child.val() }); });
-            arr.sort((a, b) => b.v - a.v);
-            let html = arr.slice(0, 10).map(r => `<div class="rank-item"><span>${r.n}</span><span>${r.v}</span></div>`).join('');
-            document.getElementById('rate-list').innerHTML = html || "No Data";
+            let arr = []; snap.forEach(c => { arr.push({n: c.key, v: c.val()}); });
+            arr.sort((a,b) => b.v - a.v);
+            document.getElementById('rate-list').innerHTML = arr.slice(0,10).map(r => `<div class="rank-item"><span>${r.n}</span><span>${r.v}</span></div>`).join('');
         });
-
-        // SOLOランキング取得 (古い npc_ranking パスからデータを取得して SOLO BEST として表示)
         db.ref('npc_ranking').once('value', snap => {
-            let arr = [];
-            snap.forEach(child => { arr.push({ n: child.key, v: child.val() }); });
-            arr.sort((a, b) => b.v - a.v);
-            let html = arr.slice(0, 10).map(r => `<div class="rank-item"><span>${r.n}</span><span>${r.v} pts</span></div>`).join('');
-            document.getElementById('solo-list').innerHTML = html || "No Data";
+            let arr = []; snap.forEach(c => { arr.push({n: c.key, v: c.val()}); });
+            arr.sort((a,b) => b.v - a.v);
+            document.getElementById('solo-list').innerHTML = arr.slice(0,10).map(r => `<div class="rank-item"><span>${r.n}</span><span>${r.v} pts</span></div>`).join('');
         });
     }
 
     function joinGame(m) {
         mode = m;
         myName = document.getElementById('player-name').value.trim() || "Guest";
-        roomId = document.getElementById('room-input').value.trim() || "lobby_global";
         localStorage.setItem('typing_name', myName);
-        
-        // 参加時に最新レートを同期
-        syncToDatabase(myName, myRate);
-
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         
-        if (mode === 'pvp') setupPVP(); else setupSolo();
-    }
-
-    function setupSolo() {
+        // モバイル対策：入力をフォーカス
+        document.getElementById('mobile-input').focus();
+        
         document.getElementById('target').innerText = "Press Any Key to START";
-    }
-
-    function setupPVP() {
-        db.ref(`rooms/${roomId}/players/${myId}`).set({ name: myName, score: 0, ready: false, rate: myRate });
-        db.ref(`rooms/${roomId}/players/${myId}`).onDisconnect().remove();
-        db.ref(`rooms/${roomId}/players`).on('value', snap => {
-            const players = snap.val() || {};
-            const oppKey = Object.keys(players).find(id => id !== myId);
-            if (oppKey) {
-                if (!gameStarted) document.getElementById('target').innerText = "Press Key to READY";
-                if (players[myId].ready && players[oppKey].ready && !gameStarted) startGame();
-            } else { document.getElementById('target').innerText = "WAITING..."; }
-        });
     }
 
     function startGame() {
         gameStarted = true;
-        score = 0;
-        charIdx = 0;
-        document.getElementById('my-score').innerText = "0";
+        score = 0; missCount = 0;
+        let timeLeft = GAME_TIME;
         render();
-        let timeLeft = 60;
         const timerInterval = setInterval(() => {
             timeLeft--;
             document.getElementById('timer').innerText = timeLeft;
@@ -210,47 +177,68 @@
         document.getElementById('trans').innerText = q.japanese;
     }
 
+    function updateMissBar() {
+        const bar = document.getElementById('miss-bar');
+        bar.style.width = (missCount / MAX_MISS * 100) + "%";
+        if(missCount >= MAX_MISS) {
+            isStunned = true;
+            document.getElementById('game-view').classList.add('stunned');
+            setTimeout(() => {
+                isStunned = false;
+                missCount = 0;
+                bar.style.width = "0%";
+                document.getElementById('game-view').classList.remove('stunned');
+            }, 2000);
+        }
+    }
+
     function finishGame() {
         gameStarted = false;
-        const stats = document.getElementById('final-stats');
+        // WPM計算 (Words Per Minute)
+        const wpm = (score / 5) / (GAME_TIME / 60);
+        
+        document.getElementById('final-stats').innerHTML = `
+            Score: ${score} pts<br>
+            WPM: ${wpm.toFixed(1)}<br>
+            <span style="font-size: 0.9rem; color: #aaa;">(WPM: 1分間あたりの平均ワード数)</span>
+        `;
         
         if (mode === 'solo') {
-            // SOLO戦の結果をデータベースの npc_ranking (SOLO BEST用) に保存
             db.ref(`npc_ranking/${myName}`).transaction(cur => (score > (cur || 0)) ? score : cur);
-            stats.innerText = `Final Score: ${score} pts`;
-        } else {
-            // PVPの結果（レート更新など）
-            stats.innerText = `PVP Result Score: ${score}`;
         }
         document.getElementById('result-overlay').style.display = 'flex';
     }
 
-    window.addEventListener('keydown', e => {
-        if (e.key.length !== 1) return;
-        if (!gameStarted) {
-            if (mode === 'pvp' && !isReady) { 
-                isReady = true; 
-                db.ref(`rooms/${roomId}/players/${myId}/ready`).set(true); 
-            } else if (mode === 'solo') {
-                startGame();
-            }
-            return;
-        }
+    // キー入力イベントを一つに集約（スマホ/PC両対応）
+    const handleInput = (key) => {
+        if (!gameStarted) { startGame(); return; }
+        if (isStunned || key.length !== 1) return;
+
         const q = questions[qIdx];
-        const targetSpans = document.getElementById('target').querySelectorAll('span');
-        
-        if (e.key === q.english[charIdx]) {
+        if (key === q.english[charIdx]) {
             charIdx++; score++;
+            missCount = Math.max(0, missCount - 1);
             if (charIdx >= q.english.length) { qIdx = (qIdx + 1) % questions.length; charIdx = 0; }
             render();
             document.getElementById('my-score').innerText = score;
-            if (mode === 'pvp') db.ref(`rooms/${roomId}/players/${myId}/score`).set(score);
         } else {
-            const currentSpan = targetSpans[charIdx];
-            if(currentSpan) {
-                currentSpan.classList.add('wrong-char');
-                setTimeout(() => currentSpan.classList.remove('wrong-char'), 150);
+            missCount++;
+            const targetSpans = document.getElementById('target').querySelectorAll('span');
+            if(targetSpans[charIdx]) {
+                targetSpans[charIdx].classList.add('wrong-char');
+                setTimeout(() => targetSpans[charIdx].classList.remove('wrong-char'), 150);
             }
+        }
+        updateMissBar();
+    };
+
+    window.addEventListener('keydown', e => handleInput(e.key));
+    // スマホ用ダミー入力監視
+    document.getElementById('mobile-input').addEventListener('input', e => {
+        const val = e.target.value;
+        if(val.length > 0) {
+            handleInput(val.slice(-1));
+            e.target.value = ""; // 入力を空にする
         }
     });
 </script>
