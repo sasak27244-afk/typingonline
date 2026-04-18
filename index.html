@@ -2,64 +2,91 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Typing Battle - Full Version</title>
+    <title>AI Typing Battle - Layout & Effect Fixed</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
-        body { background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        /* 画面全体のレイアウト */
+        body { 
+            background: #0d0d0d; 
+            color: #eee; 
+            font-family: 'Consolas', monospace; 
+            margin: 0; 
+            height: 100vh; 
+            width: 100vw;
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            overflow: hidden; 
+        }
         
-        /* ロビー画面：常に画面中央に配置 */
+        /* ロビー画面：確実に真ん中に持ってくる設定 */
         #lobby { 
             position: fixed; 
-            inset: 0; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background: #111; 
             z-index: 200; 
             display: flex; 
             flex-direction: column; 
             align-items: center; 
-            justify-content: center; 
-            overflow-y: auto; 
-            padding: 20px 0; 
+            justify-content: center; /* これで上下中央 */
         }
-        .lobby-box { background: #1a1a1a; padding: 30px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 20px; }
+        .lobby-box { 
+            background: #1a1a1a; 
+            padding: 40px; 
+            border-radius: 15px; 
+            border: 2px solid #333; 
+            text-align: center; 
+            width: 420px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
         
-        input { padding: 12px; font-size: 1.1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 280px; margin-bottom: 15px; outline: none; }
+        input { padding: 12px; font-size: 1.1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 300px; margin-bottom: 15px; outline: none; }
         input:focus { border-color: #00e676; }
         
-        .btn { padding: 12px 30px; font-size: 1.1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 10px; transition: 0.2s; display: inline-block; }
+        .btn { padding: 12px 30px; font-size: 1.1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 10px; transition: 0.2s; }
         .btn-pvp { background: #00e676; color: #000; }
         .btn-npc { background: #444; color: #fff; }
-        .btn-rank-toggle { background: #222; color: #00e676; border: 2px solid #00e676; width: 80%; margin-top: 20px; padding: 10px; }
-        .btn:hover { transform: scale(1.05); filter: brightness(1.2); }
+        .btn-rank-toggle { background: #222; color: #00e676; border: 2px solid #00e676; width: 90%; margin-top: 20px; }
 
         /* ランキング表示エリア */
-        #ranking-area { display: none; width: 90%; max-width: 800px; margin-top: 20px; }
-        .ranking-board { flex: 1; background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #444; margin: 0 10px; }
-        .ranking-board h3 { color: #00e676; border-bottom: 1px solid #333; padding-bottom: 10px; text-align: center; margin-top: 0; }
-        .rank-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #222; font-size: 0.9rem; }
-        .rank-val { color: #ffd700; font-weight: bold; }
+        #ranking-area { display: none; width: 90%; max-width: 850px; margin-top: 25px; gap: 15px; }
+        .ranking-board { flex: 1; background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #444; }
+        .ranking-board h3 { color: #00e676; text-align: center; margin-top: 0; font-size: 1rem; }
+        .rank-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #222; font-size: 0.85rem; }
 
         /* ゲーム画面 */
         #game-view { display: none; text-align: center; width: 90%; max-width: 800px; }
-        #timer { font-size: 4rem; color: #ff5252; font-weight: bold; }
+        #timer { font-size: 4rem; color: #ff5252; font-weight: bold; margin-bottom: 10px; }
         
-        /* ミス時の演出用アニメーション */
+        /* 【重要】ミス演出：揺れるアニメーション */
         @keyframes shake {
             0% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            50% { transform: translateX(5px); }
-            75% { transform: translateX(-5px); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-8px); }
+            80% { transform: translateX(8px); }
             100% { transform: translateX(0); }
         }
-        .miss-flash { animation: shake 0.2s ease-in-out; color: #ff5252 !important; }
+        .miss-shake { 
+            animation: shake 0.2s ease-in-out; 
+        }
+        /* ミスした瞬間の文字色 */
+        .wrong-char {
+            color: #ff5252 !important;
+            text-shadow: 0 0 10px #ff5252;
+        }
 
-        #target { font-size: 2.4rem; min-height: 3.5rem; line-height: 1.4; margin-top: 20px; transition: color 0.1s; }
-        #trans { color: #00e676; font-size: 1.6rem; min-height: 2.5rem; margin-bottom: 20px; font-weight: bold; }
-        .current { border-bottom: 4px solid #00e676; }
-        .correct { color: #555; }
+        #target { font-size: 2.8rem; min-height: 4rem; margin-top: 20px; transition: color 0.1s; }
+        #trans { color: #00e676; font-size: 1.6rem; margin-bottom: 25px; font-weight: bold; }
+        .current { border-bottom: 5px solid #00e676; }
+        .correct { color: #444; }
         
-        #score-board { display: flex; justify-content: space-between; gap: 20px; margin-top: 20px; }
-        .score-box { flex: 1; padding: 20px; background: #1a1a1a; border: 3px solid #00e676; border-radius: 12px; font-size: 1.8rem; font-weight: bold; text-align: center; }
+        #score-board { display: flex; justify-content: space-between; gap: 20px; }
+        .score-box { flex: 1; padding: 20px; background: #1a1a1a; border: 4px solid #00e676; border-radius: 12px; font-size: 2rem; font-weight: bold; }
         
         #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: center; z-index: 300; }
     </style>
@@ -68,8 +95,8 @@
 
 <div id="lobby">
     <div class="lobby-box">
-        <h1 style="color: #00e676; margin: 0 0 10px 0;">TYPING BATTLE</h1>
-        <div style="color: #ffd700; font-weight: bold; font-size: 1.2rem;">Your Rate: <span id="my-rate-val">0</span></div>
+        <h1 style="color: #00e676; margin: 0 0 15px 0; font-size: 2.5rem;">TYPING BATTLE</h1>
+        <div style="color: #ffd700; font-weight: bold; font-size: 1.3rem;">Your Rate: <span id="my-rate-val">0</span></div>
         <br>
         <input type="text" id="player-name" placeholder="YOUR NAME" maxlength="10">
         <br>
@@ -81,40 +108,36 @@
         <button id="toggle-rank-btn" class="btn btn-rank-toggle" onclick="toggleRanking()">🏆 VIEW RANKINGS</button>
     </div>
 
-    <div id="ranking-area" style="display: none; flex-direction: row;">
+    <div id="ranking-area">
         <div class="ranking-board">
             <h3>RATE TOP 10</h3>
-            <div id="rate-list" style="text-align: left;">Fetching...</div>
+            <div id="rate-list"></div>
         </div>
         <div class="ranking-board">
             <h3>NPC BEST 10</h3>
-            <div id="npc-list" style="text-align: left;">Fetching...</div>
+            <div id="npc-list"></div>
         </div>
     </div>
 </div>
 
 <div id="game-view">
     <div id="timer">60</div>
-    <div id="status-msg" style="color:#ffd700; font-weight:bold;">READY?</div>
     <div id="target">Wait...</div>
     <div id="trans"></div>
     <div id="score-board">
         <div class="score-box">YOU: <span id="my-score">0</span></div>
         <div class="score-box"><span id="display-opp-name">ENEMY</span>: <span id="opp-score">0</span></div>
     </div>
-    <div style="margin-top: 30px;">
-        <button class="btn btn-npc" onclick="location.reload()">BACK TO LOBBY</button>
-    </div>
 </div>
 
 <div id="result-overlay">
     <h1 id="win-lose-label" style="font-size: 5rem;"></h1>
-    <div id="rate-change" style="font-size: 2rem; color: #ffd700;"></div>
-    <div id="no-rate-reason" style="color: #888; margin-top: 10px;"></div>
+    <div id="rate-change" style="font-size: 2rem; color: #ffd700; margin-bottom: 20px;"></div>
     <button class="btn btn-pvp" onclick="location.reload()">BACK TO LOBBY</button>
 </div>
 
 <script>
+    // Firebase設定
     const firebaseConfig = {
         apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
         authDomain: "typing-game-5176f.firebaseapp.com",
@@ -136,7 +159,6 @@
         myRate = parseInt(localStorage.getItem('typing_rate')) || 0;
         document.getElementById('my-rate-val').innerText = myRate;
         document.getElementById('player-name').value = localStorage.getItem('typing_name') || "";
-        document.getElementById('room-input').value = localStorage.getItem('typing_room') || "";
         loadData();
     };
 
@@ -144,53 +166,35 @@
         try {
             const res = await fetch('questions.json?v=' + Date.now());
             questions = (await res.json()).sort(() => Math.random() - 0.5);
-        } catch(e) { console.error("Question load error", e); }
+        } catch(e) { console.error("Data load error", e); }
     }
 
     function toggleRanking() {
         const area = document.getElementById('ranking-area');
-        const btn = document.getElementById('toggle-rank-btn');
-        if (area.style.display === 'none') {
-            area.style.display = 'flex';
-            btn.innerText = "✖ HIDE RANKINGS";
-            fetchRankingData();
-        } else {
-            area.style.display = 'none';
-            btn.innerText = "🏆 VIEW RANKINGS";
-        }
+        area.style.display = (area.style.display === 'flex') ? 'none' : 'flex';
+        if(area.style.display === 'flex') fetchRankingData();
     }
 
     function fetchRankingData() {
-        const rList = document.getElementById('rate-list');
-        const nList = document.getElementById('npc-list');
-        rList.innerText = "Loading..."; nList.innerText = "Loading...";
-
         db.ref('rate_ranking').orderByValue().limitToLast(10).once('value', snap => {
-            rList.innerHTML = ""; let arr = [];
-            snap.forEach(c => { arr.push({name: c.key, val: c.val()}); });
-            arr.reverse().forEach(r => {
-                rList.innerHTML += `<div class="rank-item"><span>${r.name}</span><span class="rank-val">${r.val}</span></div>`;
-            });
-            if(!arr.length) rList.innerText = "No data.";
+            let html = ""; let arr = [];
+            snap.forEach(c => arr.push({n: c.key, v: c.val()}));
+            arr.reverse().forEach(r => html += `<div class="rank-item"><span>${r.n}</span><span>${r.v}</span></div>`);
+            document.getElementById('rate-list').innerHTML = html || "No data";
         });
-
         db.ref('npc_ranking').orderByValue().limitToLast(10).once('value', snap => {
-            nList.innerHTML = ""; let arr = [];
-            snap.forEach(c => { arr.push({name: c.key, val: c.val()}); });
-            arr.reverse().forEach(r => {
-                nList.innerHTML += `<div class="rank-item"><span>${r.name}</span><span class="rank-val">${r.val} pts</span></div>`;
-            });
-            if(!arr.length) nList.innerText = "No data.";
+            let html = ""; let arr = [];
+            snap.forEach(c => arr.push({n: c.key, v: c.val()}));
+            arr.reverse().forEach(r => html += `<div class="rank-item"><span>${r.n}</span><span>${r.v} pts</span></div>`);
+            document.getElementById('npc-list').innerHTML = html || "No data";
         });
     }
 
-    function joinGame(selectedMode) {
-        mode = selectedMode;
+    function joinGame(m) {
+        mode = m;
         myName = document.getElementById('player-name').value.trim() || "Guest";
-        let rawRoomId = document.getElementById('room-input').value.trim();
-        roomId = rawRoomId || "lobby_global";
+        roomId = document.getElementById('room-input').value.trim() || "lobby_global";
         localStorage.setItem('typing_name', myName);
-        localStorage.setItem('typing_room', rawRoomId);
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         if (mode === 'pvp') setupPVP(); else setupNPC();
@@ -209,20 +213,17 @@
                 oppScore = opp.score; oppRate = opp.rate || 0;
                 if (!gameStarted) document.getElementById('target').innerText = "Press Key to READY";
                 if (players[myId].ready && opp.ready && !gameStarted) startGame();
-            } else {
-                document.getElementById('target').innerText = "WAITING...";
-            }
+            } else { document.getElementById('target').innerText = "WAITING..."; }
         });
     }
 
     function setupNPC() {
         document.getElementById('display-opp-name').innerText = "NPC (HARD)";
-        document.getElementById('target').innerText = "Press Key to START";
+        document.getElementById('target').innerText = "Press Any Key to START";
     }
 
     function startGame() {
         gameStarted = true;
-        document.getElementById('status-msg').innerText = "GO!";
         render();
         let timeLeft = 60;
         const timerInterval = setInterval(() => {
@@ -230,9 +231,7 @@
             document.getElementById('timer').innerText = timeLeft;
             if (timeLeft <= 0) { clearInterval(timerInterval); if(npcTimer) clearInterval(npcTimer); finishGame(); }
         }, 1000);
-        if (mode === 'npc') {
-            npcTimer = setInterval(() => { oppScore++; document.getElementById('opp-score').innerText = oppScore; }, 900);
-        }
+        if (mode === 'npc') npcTimer = setInterval(() => { oppScore++; document.getElementById('opp-score').innerText = oppScore; }, 850);
     }
 
     function render() {
@@ -246,26 +245,22 @@
     function finishGame() {
         gameStarted = false;
         const label = document.getElementById('win-lose-label');
-        const rateLabel = document.getElementById('rate-change');
-        const isOfficial = (mode === 'pvp' && roomId === "lobby_global");
-        let diff = score - oppScore;
-        if (diff > 0) { label.innerText = "YOU WIN!"; label.style.color = "#00e676"; }
-        else if (diff < 0) { label.innerText = "YOU LOSE..."; label.style.color = "#ff5252"; }
-        else { label.innerText = "DRAW"; label.style.color = "#eee"; }
+        if (score > oppScore) { label.innerText = "YOU WIN!"; label.style.color = "#00e676"; }
+        else if (score < oppScore) { label.innerText = "YOU LOSE..."; label.style.color = "#ff5252"; }
+        else { label.innerText = "DRAW"; }
 
-        if (isOfficial) {
-            let change = diff > 0 ? 30 : (diff < 0 ? -20 : 0);
+        if (mode === 'pvp' && roomId === "lobby_global") {
+            let change = (score > oppScore) ? 30 : -20;
             myRate = Math.max(0, myRate + change);
             localStorage.setItem('typing_rate', myRate);
-            rateLabel.innerText = `Rate: ${myRate} (${change >= 0 ? '+' : ''}${change})`;
-            db.ref(`rate_ranking/${myName}`).transaction(cur => (myRate > (cur || 0)) ? myRate : cur);
+            db.ref(`rate_ranking/${myName}`).set(myRate);
         } else if (mode === 'npc') {
-            rateLabel.innerText = `Score: ${score}`;
             db.ref(`npc_ranking/${myName}`).transaction(cur => (score > (cur || 0)) ? score : cur);
         }
         document.getElementById('result-overlay').style.display = 'flex';
     }
 
+    // 入力イベント
     window.addEventListener('keydown', e => {
         if (e.key.length !== 1) return;
         if (!gameStarted) {
@@ -274,17 +269,25 @@
             return;
         }
         const q = questions[qIdx];
-        const targetElement = document.getElementById('target');
+        const targetArea = document.getElementById('target');
+        
         if (e.key === q.english[charIdx]) {
+            // 正解
             charIdx++; score++;
             if (charIdx >= q.english.length) { qIdx = (qIdx + 1) % questions.length; charIdx = 0; }
             render();
             document.getElementById('my-score').innerText = score;
             if (mode === 'pvp') db.ref(`rooms/${roomId}/players/${myId}/score`).set(score);
         } else {
-            // ミス入力時の演出
-            targetElement.classList.add('miss-flash');
-            setTimeout(() => targetElement.classList.remove('miss-flash'), 200);
+            // 【ミス演出】
+            const currentSpan = targetArea.querySelectorAll('span')[charIdx];
+            if(currentSpan) currentSpan.classList.add('wrong-char'); // 文字を赤くする
+            
+            targetArea.classList.add('miss-shake'); // 全体を揺らす
+            setTimeout(() => {
+                targetArea.classList.remove('miss-shake');
+                if(currentSpan) currentSpan.classList.remove('wrong-char');
+            }, 200);
         }
     });
 </script>
