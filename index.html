@@ -8,113 +8,101 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
         :root { --primary: #00e676; --error: #ff5252; --bg: #0d0d0d; --panel: #1a1a1a; }
-        body { background: var(--bg); color: #eee; font-family: 'Consolas', 'Courier New', monospace; margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; touch-action: manipulation; }
+        body { background: var(--bg); color: #eee; font-family: 'Consolas', monospace; margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         
-        /* ロビー & レスポンシブ設計 */
+        /* ロビー */
         #lobby { position: fixed; inset: 0; background: #111; z-index: 200; display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 20px; }
-        .lobby-box { background: var(--panel); padding: 25px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        
-        input[type="text"] { padding: 12px; font-size: 1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 85%; margin-bottom: 15px; outline: none; transition: border 0.3s; }
-        input:focus { border-color: var(--primary); }
-        
-        .btn { padding: 12px 20px; font-size: 0.9rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 5px; transition: 0.2s; min-width: 120px; }
+        .lobby-box { background: var(--panel); padding: 25px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 90%; max-width: 400px; }
+        input[type="text"] { padding: 12px; font-size: 1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 85%; margin-bottom: 15px; outline: none; }
+        .btn { padding: 12px 20px; font-size: 0.9rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 5px; transition: 0.2s; }
         .btn-pvp { background: var(--primary); color: #000; }
         .btn-solo { background: #444; color: #fff; }
 
         /* ランキング */
         #ranking-area { display: flex; width: 100%; max-width: 900px; gap: 15px; flex-wrap: wrap; justify-content: center; margin-top: 30px; }
-        .ranking-board { flex: 1; min-width: 300px; background: var(--panel); padding: 15px; border-radius: 12px; border: 1px solid #444; font-size: 0.9rem; }
-        .ranking-board h3 { color: var(--primary); text-align: center; margin-top: 0; border-bottom: 2px solid #333; padding-bottom: 8px; }
-        .rank-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #222; }
+        .ranking-board { flex: 1; min-width: 300px; background: var(--panel); padding: 15px; border-radius: 12px; border: 1px solid #444; }
+        .ranking-board h3 { color: var(--primary); text-align: center; border-bottom: 2px solid #333; padding-bottom: 8px; }
+        .rank-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #222; font-size: 0.9rem; }
 
         /* ゲーム画面 */
-        #game-view { display: none; text-align: center; width: 95%; max-width: 800px; position: relative; }
-        #timer { font-size: 3rem; color: var(--error); font-weight: bold; margin-bottom: 10px; }
-        
-        /* 対戦相手情報 */
-        #opp-display { display: none; background: rgba(0,230,118,0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; color: var(--primary); border: 1px solid var(--primary); }
+        #game-view { display: none; text-align: center; width: 95%; max-width: 800px; position: relative; transition: filter 0.3s; }
+        #timer { font-size: 3rem; color: var(--error); font-weight: bold; }
+        #opp-display { display: none; color: var(--primary); margin-bottom: 10px; font-weight: bold; }
 
         /* ミス表示 */
-        .miss-info { display: flex; justify-content: space-between; width: 100%; max-width: 500px; margin: 0 auto; color: var(--error); font-weight: bold; font-size: 0.8rem; }
+        .miss-info { display: flex; justify-content: space-between; max-width: 500px; margin: 0 auto; color: var(--error); font-weight: bold; font-size: 0.9rem; }
         .miss-container { width: 100%; max-width: 500px; height: 10px; background: #333; margin: 5px auto 25px; border-radius: 5px; overflow: hidden; }
         #miss-bar { width: 0%; height: 100%; background: var(--error); transition: width 0.2s; }
 
-        /* スタン（ペナルティ）オーバーレイ - 視認性重視 */
+        /* スタン（ペナルティ）演出：背景ぼかし + 白文字 */
         #stun-overlay { 
-            display: none; position: fixed; inset: 0; 
-            background: #ffffff; color: #000000; z-index: 2000; 
+            display: none; position: fixed; inset: 0; z-index: 1000; 
+            background: rgba(0, 0, 0, 0.4); 
             flex-direction: column; align-items: center; justify-content: center;
         }
-        #stun-overlay h2 { font-size: 6rem; margin: 0; font-weight: 900; line-height: 1; }
-        #stun-overlay p { font-size: 2.5rem; font-weight: bold; margin-top: 10px; }
+        .stun-text { color: #fff; text-shadow: 0 0 20px rgba(0,0,0,1); text-align: center; }
+        .stun-text h2 { font-size: 5rem; margin: 0; font-weight: 900; }
+        .stun-text p { font-size: 2.5rem; font-weight: bold; }
+        .is-stunned { filter: blur(15px); pointer-events: none; }
 
-        /* テキストエリア */
-        #target { font-size: 2.2rem; min-height: 3.5rem; margin-top: 10px; color: #fff; word-break: break-all; line-height: 1.2; }
-        #trans { color: var(--primary); font-size: 1.3rem; margin-bottom: 25px; min-height: 1.5rem; }
-        .current { border-bottom: 4px solid var(--primary); background: rgba(0, 230, 118, 0.2); }
+        /* テキスト表示 */
+        #target { font-size: 2.5rem; min-height: 4rem; margin-top: 10px; color: #fff; word-break: break-all; }
+        #trans { color: var(--primary); font-size: 1.5rem; margin-bottom: 30px; }
+        .current { border-bottom: 5px solid var(--primary); }
         .correct { color: #555; }
-        .wrong-char { animation: shake 0.1s infinite; color: var(--error) !important; }
+        .wrong-char { color: var(--error) !important; background: rgba(255, 82, 82, 0.2); }
 
-        @keyframes shake { 0% { transform: translateX(0); } 50% { transform: translateX(3px); } 100% { transform: translateX(0); } }
-
-        #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.98); flex-direction: column; align-items: center; justify-content: center; z-index: 300; padding: 20px; text-align: center; }
+        #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: center; z-index: 300; }
         #mobile-input { position: absolute; opacity: 0; pointer-events: none; }
 
-        /* スマホ向け調整 */
-        @media (max-width: 600px) {
-            #target { font-size: 1.6rem; }
-            #trans { font-size: 1rem; }
-            .lobby-box { padding: 15px; }
-            #stun-overlay h2 { font-size: 4rem; }
-        }
+        @media (max-width: 600px) { #target { font-size: 1.8rem; } #trans { font-size: 1.2rem; } }
     </style>
 </head>
 <body>
 
-<input type="text" id="mobile-input" autocomplete="off" ontouchstart="this.focus()">
+<input type="text" id="mobile-input" autocomplete="off">
 
 <div id="lobby">
     <div class="lobby-box">
-        <h1 style="color: var(--primary); margin: 0 0 5px 0; font-size: 1.8rem;">AI TYPING BATTLE</h1>
-        <p style="color: #ffd700; font-weight: bold; margin-bottom: 15px;">Rate: <span id="my-rate-val">---</span></p>
+        <h1 style="color: var(--primary); margin: 0;">AI TYPING BATTLE</h1>
+        <p style="color: #ffd700; font-weight: bold;">Rate: <span id="my-rate-val">---</span></p>
         <input type="text" id="player-name" placeholder="YOUR NAME" maxlength="10">
-        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 5px;">
+        <div style="display: flex; justify-content: center; gap: 10px;">
             <button class="btn btn-pvp" onclick="initPvP()">1v1 ONLINE</button>
             <button class="btn btn-solo" onclick="initSolo()">SOLO MODE</button>
         </div>
         <p id="match-status" style="margin-top:15px; font-size:0.8rem; color:#888;"></p>
     </div>
-
     <div id="ranking-area">
-        <div class="ranking-board"><h3>🏆 RATE TOP 10</h3><div id="rate-list">Loading...</div></div>
-        <div class="ranking-board"><h3>🔥 SOLO BEST (WPM)</h3><div id="solo-list">Loading...</div></div>
+        <div class="ranking-board"><h3>RATE TOP 10</h3><div id="rate-list"></div></div>
+        <div class="ranking-board"><h3>SOLO BEST (WPM)</h3><div id="solo-list"></div></div>
     </div>
 </div>
 
 <div id="game-view">
-    <div id="stun-overlay">
-        <h2>STOP!</h2>
-        <p>WAIT: <span id="stun-timer">2.0</span>s</p>
-    </div>
-    <div id="opp-display">
-        <span id="opp-name">Searching...</span>: <span id="opp-score">0</span> pts
-    </div>
+    <div id="opp-display"><span id="opp-name">---</span>: <span id="opp-score">0</span></div>
     <div id="timer">60</div>
     <div class="miss-info"><span>MISS WARNING</span><span id="miss-text">0 / 10</span></div>
     <div class="miss-container"><div id="miss-bar"></div></div>
-    <div id="target">Ready?</div>
+    <div id="target">Wait...</div>
     <div id="trans"></div>
-    <div style="font-size: 1.5rem; font-weight: bold;">SCORE: <span id="my-score">0</span></div>
+    <div style="font-size: 1.8rem; font-weight: bold;">SCORE: <span id="my-score">0</span></div>
+</div>
+
+<div id="stun-overlay">
+    <div class="stun-text">
+        <h2>STUN!</h2>
+        <p>Wait <span id="stun-timer">2.0</span>s</p>
+    </div>
 </div>
 
 <div id="result-overlay">
-    <h1 id="res-title" style="font-size: 3rem; color: var(--primary); margin: 0;">FINISH!</h1>
-    <div id="final-stats" style="color: #fff; font-size: 1.2rem; line-height: 1.6; margin: 20px 0;"></div>
+    <h1 id="res-title" style="font-size: 3.5rem; color: var(--primary);">FINISH!</h1>
+    <div id="final-stats" style="color: #fff; font-size: 1.5rem; text-align: center; margin: 20px 0;"></div>
     <button class="btn btn-pvp" onclick="location.reload()">BACK TO LOBBY</button>
 </div>
 
 <script>
-    // Firebase初期化
     const firebaseConfig = {
         apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
         authDomain: "typing-game-5176f.firebaseapp.com",
@@ -129,7 +117,7 @@
 
     let myName = "", mode = "solo", myRate = 1000, roomId = null, pKey = "p1", questions = [];
     let qIdx = 0, charIdx = 0, score = 0, gameStarted = false, isStunned = false, missCount = 0;
-    const GAME_DURATION = 60;
+    const TIME_LIMIT = 60;
 
     window.onload = () => {
         myRate = parseInt(localStorage.getItem('typing_rate')) || 1000;
@@ -141,103 +129,94 @@
     };
 
     async function loadData() {
-        try {
-            const res = await fetch('questions.json?v=' + Date.now());
-            questions = await res.json();
-        } catch(e) { console.error("Data load error:", e); }
+        const res = await fetch('questions.json?v=' + Date.now());
+        questions = await res.json();
     }
 
     function updateRanking() {
         db.ref('rate_ranking').orderByValue().limitToLast(10).once('value', s => {
-            let a = []; s.forEach(c => { a.push({n:c.key, v:c.val()}); });
-            a.sort((x,y) => y.v - x.v);
-            document.getElementById('rate-list').innerHTML = a.map((r,i) => `<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v}</span></div>`).join('');
+            let a = []; s.forEach(c => a.push({n:c.key, v:c.val()}));
+            a.sort((x,y)=>y.v-x.v);
+            document.getElementById('rate-list').innerHTML = a.map((r,i)=>`<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v}</span></div>`).join('');
         });
         db.ref('npc_ranking').orderByValue().limitToLast(10).once('value', s => {
-            let a = []; s.forEach(c => { a.push({n:c.key, v:c.val()}); });
-            a.sort((x,y) => y.v - x.v);
-            document.getElementById('solo-list').innerHTML = a.map((r,i) => `<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v} WPM</span></div>`).join('');
+            let a = []; s.forEach(c => a.push({n:c.key, v:c.val()}));
+            a.sort((x,y)=>y.v-x.v);
+            document.getElementById('solo-list').innerHTML = a.map((r,i)=>`<div class="rank-item"><span>${i+1}. ${r.n}</span><span>${r.v} WPM</span></div>`).join('');
         });
     }
 
     function initSolo() {
         mode = "solo";
-        setupLobbyData();
+        setupUser();
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         document.getElementById('target').innerText = "Press Any Key to START";
         document.getElementById('mobile-input').focus();
     }
 
-    function setupLobbyData() {
+    function setupUser() {
         myName = document.getElementById('player-name').value.trim() || "Guest";
         localStorage.setItem('typing_name', myName);
     }
 
-    // --- PvP Room ID & Matching Logic ---
     function initPvP() {
         mode = "pvp";
-        setupLobbyData();
-        document.getElementById('match-status').innerText = "Searching for opponent...";
+        setupUser();
+        document.getElementById('match-status').innerText = "Matching...";
 
-        const waitRef = db.ref('waiting_room');
-        waitRef.transaction(cur => {
-            if (cur) return null; // 他の人が待っているなら自分は入らない
+        db.ref('waiting_room').transaction(cur => {
+            if (cur) return null;
             return { id: "room_" + Date.now(), name: myName, rate: myRate };
         }, (err, committed, snap) => {
             if (snap.val() && snap.val().name === myName) {
-                // ホスト(p1)
                 roomId = snap.val().id; pKey = "p1";
                 db.ref(`rooms/${roomId}/p1`).set({ name: myName, score: 0, rate: myRate });
-                db.ref(`rooms/${roomId}/p2`).on('value', s => { if (s.exists()) startPvPFlow(); });
+                db.ref(`rooms/${roomId}/p2`).on('value', s => { if(s.exists()) startPvP(); });
             } else {
-                // ゲスト(p2)
-                waitRef.once('value', s => {
+                db.ref('waiting_room').once('value', s => {
                     if(!s.exists()) return;
                     roomId = s.val().id; pKey = "p2";
                     db.ref(`rooms/${roomId}/p2`).set({ name: myName, score: 0, rate: myRate });
-                    waitRef.remove();
-                    startPvPFlow();
+                    db.ref('waiting_room').remove();
+                    startPvP();
                 });
             }
         });
     }
 
-    function startPvPFlow() {
+    function startPvP() {
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         document.getElementById('opp-display').style.display = 'block';
-        
-        const oppKey = (pKey === "p1") ? "p2" : "p1";
+        const oppKey = pKey === "p1" ? "p2" : "p1";
         db.ref(`rooms/${roomId}/${oppKey}`).on('value', s => {
-            if (s.exists()) {
+            if(s.exists()){
                 document.getElementById('opp-name').innerText = s.val().name;
                 document.getElementById('opp-score').innerText = s.val().score;
             }
         });
-
-        let countdown = 3;
+        let c = 3;
         const i = setInterval(() => {
-            document.getElementById('target').innerText = countdown;
-            if (countdown-- <= 0) { clearInterval(i); startGame(); }
+            document.getElementById('target').innerText = c;
+            if(c-- <= 0) { clearInterval(i); startGame(); }
         }, 1000);
     }
 
     function startGame() {
         gameStarted = true; score = 0; missCount = 0; charIdx = 0;
-        questions.sort(() => Math.random() - 0.5);
+        questions.sort(()=>Math.random()-0.5);
         render(); updateMissUI();
-        let timeLeft = GAME_DURATION;
+        let t = TIME_LIMIT;
         const i = setInterval(() => {
-            document.getElementById('timer').innerText = --timeLeft;
-            if (timeLeft <= 0) { clearInterval(i); finishGame(); }
+            document.getElementById('timer').innerText = --t;
+            if(t <= 0) { clearInterval(i); finishGame(); }
         }, 1000);
         document.getElementById('mobile-input').focus();
     }
 
     function render() {
         const q = questions[qIdx];
-        if(!q) return;
         document.getElementById('target').innerHTML = q.english.split('').map((c, i) => 
             `<span class="${i === charIdx ? 'current' : (i < charIdx ? 'correct' : '')}">${c}</span>`).join('');
         document.getElementById('trans').innerText = q.japanese;
@@ -257,8 +236,7 @@
             if (mode === "pvp") db.ref(`rooms/${roomId}/${pKey}`).update({ score: score });
         } else {
             missCount++;
-            const s = document.querySelectorAll('#target span')[charIdx];
-            if(s) { s.classList.add('wrong-char'); setTimeout(()=>s.classList.remove('wrong-char'),150); }
+            if (missCount >= 10) triggerStun();
         }
         updateMissUI();
     }
@@ -266,40 +244,37 @@
     function updateMissUI() {
         document.getElementById('miss-bar').style.width = (missCount * 10) + "%";
         document.getElementById('miss-text').innerText = missCount + " / 10";
-        if (missCount >= 10 && !isStunned) triggerStun();
     }
 
     function triggerStun() {
         isStunned = true;
-        const overlay = document.getElementById('stun-overlay');
-        overlay.style.display = 'flex';
+        document.getElementById('game-view').classList.add('is-stunned');
+        document.getElementById('stun-overlay').style.display = 'flex';
         let r = 2.0;
         const i = setInterval(() => {
             r -= 0.1;
             document.getElementById('stun-timer').innerText = r.toFixed(1);
             if (r <= 0) {
                 clearInterval(i); isStunned = false; missCount = 0;
-                overlay.style.display = 'none'; updateMissUI();
-                document.getElementById('mobile-input').focus();
+                document.getElementById('game-view').classList.remove('is-stunned');
+                document.getElementById('stun-overlay').style.display = 'none';
+                updateMissUI();
             }
         }, 100);
     }
 
     function finishGame() {
         gameStarted = false;
-        // WPM算出公式: (正解打鍵数 / 5) / (経過時間(秒) / 60)
-        const wpm = (score / 5) / (GAME_DURATION / 60);
+        const wpm = (score / 5) / (TIME_LIMIT / 60);
         const finalWPM = parseFloat(wpm.toFixed(1));
 
         if (mode === "pvp") {
-            const oppKey = (pKey === "p1") ? "p2" : "p1";
+            const oppKey = pKey === "p1" ? "p2" : "p1";
             db.ref(`rooms/${roomId}`).once('value', async s => {
                 const d = s.val();
-                const myS = d[pKey].score;
-                const oppS = d[oppKey].score;
+                const myS = d[pKey].score, oppS = d[oppKey].score;
                 const oppRate = d[oppKey].rate || 1000;
 
-                // --- レート計算ロジック ---
                 let base = 30;
                 let adj = Math.floor((myRate - oppRate) / 100) * 2;
                 let change = 0, resTxt = "";
@@ -310,17 +285,13 @@
                 } else if (myS < oppS) {
                     change = base + adj;
                     resTxt = `LOSE (-${change})`; myRate = Math.max(0, myRate - change);
-                } else {
-                    resTxt = "DRAW (±0)";
-                }
+                } else { resTxt = "DRAW"; }
 
                 document.getElementById('res-title').innerText = resTxt;
-                document.getElementById('final-stats').innerHTML = 
-                    `Score: ${myS} vs ${oppS}<br>WPM: ${finalWPM}<br>New Rate: ${myRate}`;
-                
+                document.getElementById('final-stats').innerHTML = `WPM: ${finalWPM}<br>New Rate: ${myRate}`;
                 db.ref(`rate_ranking/${myName}`).set(myRate);
                 localStorage.setItem('typing_rate', myRate);
-                db.ref(`rooms/${roomId}`).remove(); // ルーム削除
+                db.ref(`rooms/${roomId}`).remove();
             });
         } else {
             document.getElementById('final-stats').innerHTML = `SCORE: ${score}<br>WPM: ${finalWPM}`;
@@ -329,18 +300,12 @@
         document.getElementById('result-overlay').style.display = 'flex';
     }
 
-    // 入力イベント
     window.addEventListener('keydown', e => {
         if (e.target.tagName === 'INPUT' && e.target.id !== 'mobile-input') return;
         handleInput(e.key);
     });
     document.getElementById('mobile-input').addEventListener('input', e => {
-        const v = e.target.value;
-        if(v.length > 0) { handleInput(v.slice(-1)); e.target.value = ""; }
-    });
-    // モバイルで画面タップ時にキーボードを出す
-    document.body.addEventListener('touchstart', () => {
-        if(gameStarted && !isStunned) document.getElementById('mobile-input').focus();
+        handleInput(e.target.value.slice(-1)); e.target.value = "";
     });
 </script>
 </body>
