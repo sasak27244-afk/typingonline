@@ -2,67 +2,28 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Typing Battle - Sync Fix</title>
+    <title>AI Typing Battle - Sync Master</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
-        body { 
-            background: #0d0d0d; 
-            color: #eee; 
-            font-family: 'Consolas', monospace; 
-            margin: 0; 
-            height: 100vh; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            overflow: hidden; 
-        }
-        
-        #lobby { 
-            position: fixed; 
-            inset: 0; 
-            background: #111; 
-            z-index: 200; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-        }
-        .lobby-box { 
-            background: #1a1a1a; 
-            padding: 40px; 
-            border-radius: 15px; 
-            border: 2px solid #333; 
-            text-align: center; 
-            width: 400px; 
-            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-        }
-        
+        body { background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        #lobby { position: fixed; inset: 0; background: #111; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .lobby-box { background: #1a1a1a; padding: 40px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
         input { padding: 12px; font-size: 1.1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 80%; margin-bottom: 15px; outline: none; }
         .btn { padding: 12px 30px; font-size: 1.1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 10px; transition: 0.2s; }
         .btn-pvp { background: #00e676; color: #000; }
         .btn-npc { background: #444; color: #fff; }
         .btn-rank-toggle { background: #222; color: #00e676; border: 2px solid #00e676; width: 90%; margin-top: 20px; }
-
         #ranking-area { display: none; width: 90%; max-width: 800px; margin-top: 20px; gap: 15px; }
         .ranking-board { flex: 1; background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #444; }
-        .ranking-board h3 { color: #00e676; text-align: center; margin-top: 0; font-size: 1rem; }
         .rank-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #222; font-size: 0.85rem; }
-
         #game-view { display: none; text-align: center; width: 90%; max-width: 800px; }
         #timer { font-size: 4rem; color: #ff5252; font-weight: bold; }
-        
-        .wrong-char {
-            color: #ff5252 !important;
-            background: rgba(255, 82, 82, 0.2);
-            border-radius: 4px;
-        }
-
+        .wrong-char { color: #ff5252 !important; background: rgba(255, 82, 82, 0.2); border-radius: 4px; }
         #target { font-size: 2.8rem; min-height: 4rem; margin-top: 20px; }
         #trans { color: #00e676; font-size: 1.6rem; margin-bottom: 25px; font-weight: bold; }
         .current { border-bottom: 5px solid #00e676; }
         .correct { color: #444; }
-        
         .score-box { flex: 1; padding: 20px; background: #1a1a1a; border: 4px solid #00e676; border-radius: 12px; font-size: 2rem; font-weight: bold; }
         #score-board { display: flex; justify-content: space-between; gap: 20px; }
         #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: center; z-index: 300; }
@@ -84,7 +45,6 @@
         </div>
         <button id="toggle-rank-btn" class="btn btn-rank-toggle" onclick="toggleRanking()">🏆 VIEW RANKINGS</button>
     </div>
-
     <div id="ranking-area">
         <div class="ranking-board"><h3>RATE TOP 10</h3><div id="rate-list"></div></div>
         <div class="ranking-board"><h3>NPC BEST 10</h3><div id="npc-list"></div></div>
@@ -126,22 +86,31 @@
     let gameStarted = false, isReady = false, npcTimer = null;
 
     window.onload = () => {
-        // ロード時にレートを表示し、データベースへも同期
-        syncDataToLobby();
+        myRate = parseInt(localStorage.getItem('typing_rate')) || 0;
+        document.getElementById('my-rate-val').innerText = myRate;
+        
+        const savedName = localStorage.getItem('typing_name');
+        if(savedName) {
+            document.getElementById('player-name').value = savedName;
+            myName = savedName;
+            // 【重要】名前があれば即座にDBを更新して、自分の50を表示させる
+            updateRateOnDB(savedName, myRate);
+        }
         loadData();
+        fetchRankingData();
     };
 
-    function syncDataToLobby() {
-        myRate = parseInt(localStorage.getItem('typing_rate')) || 0;
-        myName = localStorage.getItem('typing_name') || "";
-        
-        document.getElementById('my-rate-val').innerText = myRate;
-        if(myName) {
-            document.getElementById('player-name').value = myName;
-            // ロビーにいる＝今のレートをDBに送る
-            db.ref(`rate_ranking/${myName}`).set(myRate);
-        }
-        fetchRankingData(); // 最新ランキングも取得
+    // 名前を入力した瞬間にもDBへ同期させる
+    document.getElementById('player-name').addEventListener('input', (e) => {
+        myName = e.target.value.trim();
+        localStorage.setItem('typing_name', myName);
+        if(myName) updateRateOnDB(myName, myRate);
+    });
+
+    function updateRateOnDB(name, rate) {
+        if(!name) return;
+        // set() を使うことで、その名前のレートを常に最新に上書きします
+        db.ref(`rate_ranking/${name}`).set(rate);
     }
 
     async function loadData() {
@@ -177,6 +146,10 @@
         myName = document.getElementById('player-name').value.trim() || "Guest";
         roomId = document.getElementById('room-input').value.trim() || "lobby_global";
         localStorage.setItem('typing_name', myName);
+        
+        // 念のため、ゲーム開始直前にもDBへレートを送信
+        updateRateOnDB(myName, myRate);
+
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-view').style.display = 'block';
         if (mode === 'pvp') setupPVP(); else setupNPC();
@@ -211,18 +184,9 @@
         const timerInterval = setInterval(() => {
             timeLeft--;
             document.getElementById('timer').innerText = timeLeft;
-            if (timeLeft <= 0) { 
-                clearInterval(timerInterval); 
-                if(npcTimer) clearInterval(npcTimer); 
-                finishGame(); 
-            }
+            if (timeLeft <= 0) { clearInterval(timerInterval); if(npcTimer) clearInterval(npcTimer); finishGame(); }
         }, 1000);
-        if (mode === 'npc') {
-            npcTimer = setInterval(() => { 
-                oppScore++; 
-                document.getElementById('opp-score').innerText = oppScore; 
-            }, 850);
-        }
+        if (mode === 'npc') npcTimer = setInterval(() => { oppScore++; document.getElementById('opp-score').innerText = oppScore; }, 850);
     }
 
     function render() {
@@ -246,29 +210,24 @@
             let change = (score > oppScore) ? 30 : (score < oppScore ? -20 : 0);
             myRate = Math.max(0, myRate + change);
             localStorage.setItem('typing_rate', myRate);
+            updateRateOnDB(myName, myRate); // 終了時も同期
             stats.innerText = `New Rate: ${myRate} (${change >= 0 ? '+' : ''}${change})`;
         } else if (mode === 'npc') {
             db.ref(`npc_ranking/${myName}`).transaction(cur => (score > (cur || 0)) ? score : cur);
             stats.innerText = `Score: ${score} pts`;
         }
-        
         document.getElementById('result-overlay').style.display = 'flex';
     }
 
     window.addEventListener('keydown', e => {
         if (e.key.length !== 1) return;
         if (!gameStarted) {
-            if (mode === 'pvp' && !isReady) { 
-                isReady = true; 
-                db.ref(`rooms/${roomId}/players/${myId}/ready`).set(true); 
-            } else if (mode === 'npc') {
-                startGame();
-            }
+            if (mode === 'pvp' && !isReady) { isReady = true; db.ref(`rooms/${roomId}/players/${myId}/ready`).set(true); }
+            else if (mode === 'npc') startGame();
             return;
         }
         const q = questions[qIdx];
         const targetSpans = document.getElementById('target').querySelectorAll('span');
-        
         if (e.key === q.english[charIdx]) {
             charIdx++; score++;
             if (charIdx >= q.english.length) { qIdx = (qIdx + 1) % questions.length; charIdx = 0; }
