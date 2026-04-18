@@ -2,29 +2,23 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Typing Battle - Debug Mode</title>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <title>AI Typing Battle - Connection Fix</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
         body { background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        #lobby { position: fixed; inset: 0; background: #111; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow-y: auto; }
-        .lobby-box { background: #1a1a1a; padding: 30px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 400px; margin-bottom: 20px; }
-        input { padding: 12px; font-size: 1.1rem; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; width: 280px; margin-bottom: 15px; outline: none; }
-        .btn { padding: 12px 30px; font-size: 1.1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 10px; transition: 0.2s; }
+        #lobby { position: fixed; inset: 0; background: #111; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .lobby-box { background: #1a1a1a; padding: 30px; border-radius: 15px; border: 2px solid #333; text-align: center; width: 400px; }
+        .btn { padding: 12px 30px; font-size: 1.1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin: 10px; }
         .btn-pvp { background: #00e676; color: #000; }
-        .btn-rank-toggle { background: #222; color: #00e676; border: 1px solid #00e676; width: 80%; }
-
-        /* ランキングエリアのデザイン修正 */
-        #ranking-area { display: none; width: 90%; max-width: 850px; flex-direction: row; gap: 20px; }
-        .ranking-board { flex: 1; background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #444; min-height: 150px; }
-        .ranking-board h3 { color: #00e676; border-bottom: 1px solid #333; padding-bottom: 10px; text-align: center; }
-        .rank-list-inner { text-align: left; font-size: 0.9rem; color: #888; } /* デバッグメッセージ用 */
-        .rank-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #222; color: #fff; }
-        .rank-val { color: #ffd700; font-weight: bold; }
-
-        /* 対戦中のスコア枠を太く */
-        .score-box { flex: 1; padding: 15px; background: #1a1a1a; border: 3px solid #00e676; border-radius: 10px; font-size: 1.5rem; font-weight: bold; margin: 10px; }
-        #game-view { display: none; text-align: center; width: 90%; }
+        .btn-rank { background: #222; color: #00e676; border: 1px solid #00e676; }
+        
+        #ranking-area { display: none; width: 90%; max-width: 800px; margin-top: 20px; gap: 20px; }
+        .ranking-board { flex: 1; background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #444; min-height: 100px; }
+        
+        /* スコア枠線の復活・強化 */
+        .score-box { flex: 1; padding: 15px; background: #1a1a1a; border: 3px solid #333; border-radius: 10px; font-size: 1.5rem; margin: 10px; text-align: center; }
+        #game-view { display: none; width: 90%; }
     </style>
 </head>
 <body>
@@ -32,40 +26,35 @@
 <div id="lobby">
     <div class="lobby-box">
         <h1 style="color: #00e676;">TYPING BATTLE</h1>
-        <div style="color: #ffd700; font-weight: bold;">Rate: <span id="my-rate-val">0</span></div>
+        <input type="text" id="player-name" placeholder="YOUR NAME" style="padding:10px; width:80%; margin-bottom:10px;">
         <br>
-        <input type="text" id="player-name" placeholder="YOUR NAME" maxlength="10">
-        <br>
-        <input type="text" id="room-input" placeholder="ROOM ID (Optional)">
-        <div>
-            <button class="btn btn-pvp" onclick="joinGame('pvp')">1v1 ONLINE</button>
-            <button class="btn btn-rank-toggle" onclick="toggleRanking()" id="rank-btn">VIEW RANKING</button>
-        </div>
+        <button class="btn btn-pvp" onclick="joinGame()">START GAME</button>
+        <button class="btn btn-rank" onclick="toggleRanking()">VIEW RANKING</button>
+        <div id="status-debug" style="font-size: 10px; color: #555; margin-top: 10px;">System Ready</div>
     </div>
 
-    <div id="ranking-area">
+    <div id="ranking-area" id="rank-area">
         <div class="ranking-board">
-            <h3>🏆 RATE TOP 10</h3>
-            <div id="rate-list" class="rank-list-inner">Wait for click...</div>
+            <h3 style="color:#00e676; text-align:center;">RATE TOP 10</h3>
+            <div id="rate-list" style="font-size: 0.9rem;">Waiting...</div>
         </div>
         <div class="ranking-board">
-            <h3>🔥 NPC BEST 10</h3>
-            <div id="npc-list" class="rank-list-inner">Wait for click...</div>
+            <h3 style="color:#00e676; text-align:center;">NPC BEST 10</h3>
+            <div id="npc-list" style="font-size: 0.9rem;">Waiting...</div>
         </div>
     </div>
 </div>
 
 <div id="game-view">
-    <div id="timer" style="font-size: 4rem; color: #ff5252;">60</div>
-    <div id="target" style="font-size: 2.5rem; margin: 20px 0;">Wait...</div>
-    <div style="display: flex; width: 100%;">
+    <div id="timer" style="font-size: 3rem; color: #ff5252; text-align:center;">60</div>
+    <div style="display: flex;">
         <div class="score-box">YOU: <span id="my-score">0</span></div>
         <div class="score-box">ENEMY: <span id="opp-score">0</span></div>
     </div>
 </div>
 
 <script>
-    // Firebase初期化
+    // 【重要】ここの値を、自分のFirebaseコンソールの「マイアプリ」からコピーしたものに貼り替えてください
     const firebaseConfig = {
         apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
         authDomain: "typing-game-5176f.firebaseapp.com",
@@ -76,72 +65,60 @@
         appId: "1:20880910771:web:cf97c58cb713d5869943c6"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    // 初期化チェック
+    let db;
+    try {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        db = firebase.database();
+        document.getElementById('status-debug').innerText = "Firebase Initialized";
+    } catch (e) {
+        document.getElementById('status-debug').innerText = "Init Error: " + e.message;
+    }
 
     function toggleRanking() {
         const area = document.getElementById('ranking-area');
-        const btn = document.getElementById('rank-btn');
         if (area.style.display === 'flex') {
             area.style.display = 'none';
-            btn.innerText = "VIEW RANKING";
         } else {
             area.style.display = 'flex';
-            btn.innerText = "HIDE RANKING";
-            fetchRankingSafe();
+            fetchData();
         }
     }
 
-    function fetchRankingSafe() {
+    function fetchData() {
         const rList = document.getElementById('rate-list');
         const nList = document.getElementById('npc-list');
         
-        rList.innerHTML = "📡 Connecting to Firebase...";
-        nList.innerHTML = "📡 Connecting to Firebase...";
+        rList.innerText = "Connecting...";
+        nList.innerText = "Connecting...";
 
-        // レートランキング取得
-        db.ref('rate_ranking').orderByValue().limitToLast(10).once('value')
-        .then(snap => {
-            console.log("Data received:", snap.val());
+        // タイムアウト設定（5秒経っても反応がなければエラーを出す）
+        const timeout = setTimeout(() => {
+            if (rList.innerText === "Connecting...") {
+                rList.innerText = "Timeout: No response from DB.";
+                nList.innerText = "Check your Firebase Rules.";
+            }
+        }, 5000);
+
+        db.ref('rate_ranking').orderByValue().limitToLast(10).once('value', snap => {
+            clearTimeout(timeout);
             rList.innerHTML = "";
-            let data = [];
-            snap.forEach(c => { data.push({n: c.key, v: c.val()}); });
-            if (data.length === 0) {
-                rList.innerHTML = "❌ No data found in 'rate_ranking'.<br>Try playing an Online match!";
-            } else {
-                data.reverse().forEach(r => {
-                    rList.innerHTML += `<div class="rank-item"><span>${r.n}</span><span class="rank-val">${r.v}</span></div>`;
-                });
-            }
-        })
-        .catch(err => {
-            rList.innerHTML = "⚠️ Error: " + err.message;
-            console.error(err);
-        });
-
-        // NPCランキング取得
-        db.ref('npc_ranking').orderByValue().limitToLast(10).once('value')
-        .then(snap => {
-            nList.innerHTML = "";
-            let data = [];
-            snap.forEach(c => { data.push({n: c.key, v: c.val()}); });
-            if (data.length === 0) {
-                nList.innerHTML = "❌ No data found in 'npc_ranking'.<br>Try playing NPC Mode!";
-            } else {
-                data.reverse().forEach(r => {
-                    nList.innerHTML += `<div class="rank-item"><span>${r.n}</span><span class="rank-val">${r.v} pts</span></div>`;
-                });
-            }
-        })
-        .catch(err => {
-            nList.innerHTML = "⚠️ Error: " + err.message;
+            let hasData = false;
+            snap.forEach(child => {
+                hasData = true;
+                rList.innerHTML = `<div>${child.key}: ${child.val()}</div>` + rList.innerHTML;
+            });
+            if (!hasData) rList.innerText = "No data in Database.";
+        }, err => {
+            rList.innerText = "DB Error: " + err.message;
         });
     }
 
-    // --- ゲーム開始用 (動作確認用ダミー) ---
-    function joinGame(mode) {
-        alert("Game Start! (Finish the game to save data)");
-        // ここに以前のゲームロジックが入ります
+    function joinGame() {
+        document.getElementById('lobby').style.display = 'none';
+        document.getElementById('game-view').style.display = 'block';
     }
 </script>
 </body>
