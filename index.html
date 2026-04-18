@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Typing Battle - Pro</title>
+    <title>AI Typing Battle - Improved Penalty</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -17,18 +17,27 @@
         .btn-pvp { background: #00e676; color: #000; }
         .btn-solo { background: #444; color: #fff; }
 
-        /* ミスゲージのデザイン */
-        .miss-container { width: 100%; max-width: 400px; height: 10px; background: #333; margin: 15px auto; border-radius: 5px; overflow: hidden; }
-        #miss-bar { width: 0%; height: 100%; background: #ff5252; transition: width 0.2s, box-shadow 0.2s; }
+        .miss-container { width: 100%; max-width: 400px; height: 10px; background: #333; margin: 15px auto; border-radius: 5px; overflow: hidden; position: relative; }
+        #miss-bar { width: 0%; height: 100%; background: #ff5252; transition: width 0.1s; }
 
-        /* ゲーム画面 */
-        #game-view { display: none; text-align: center; width: 95%; max-width: 800px; }
+        #game-view { display: none; text-align: center; width: 95%; max-width: 800px; position: relative; }
         #timer { font-size: 3.5rem; color: #ff5252; font-weight: bold; margin-bottom: 5px; }
         
-        /* スタン状態の演出 */
-        .stunned-effect { filter: grayscale(1) blur(2px); opacity: 0.4; pointer-events: none; }
+        /* スタン（ペナルティ）中のスタイル */
+        .stunned-effect { filter: grayscale(1) brightness(0.5); pointer-events: none; }
+        #stun-message { 
+            display: none; 
+            position: absolute; 
+            top: 50%; left: 50%; 
+            transform: translate(-50%, -50%); 
+            color: #ff5252; 
+            font-size: 3rem; 
+            font-weight: bold; 
+            z-index: 100;
+            text-shadow: 0 0 20px rgba(255,82,82,0.8);
+        }
 
-        #target { font-size: 2.5rem; min-height: 3.5rem; margin-top: 15px; }
+        #target { font-size: 2.5rem; min-height: 3.5rem; margin-top: 15px; transition: 0.2s; }
         #trans { color: #00e676; font-size: 1.5rem; margin-bottom: 25px; }
         .current { border-bottom: 5px solid #00e676; }
         .correct { color: #444; }
@@ -56,8 +65,9 @@
 </div>
 
 <div id="game-view">
+    <div id="stun-message">WAIT: <span id="stun-timer">2.0</span>s</div>
     <div id="timer">60</div>
-    <div style="font-size: 0.8rem; color: #ff5252; font-weight: bold;">MISS GAUGE</div>
+    <div style="font-size: 0.8rem; color: #ff5252; font-weight: bold;">MISS GAUGE (MAX: 10)</div>
     <div class="miss-container"><div id="miss-bar"></div></div>
     <div id="target">Wait...</div>
     <div id="trans"></div>
@@ -71,7 +81,7 @@
 </div>
 
 <script>
-    // Firebaseの設定（省略せずにあなたのものを使用してください）
+    // --- Firebase設定はそのまま ---
     const firebaseConfig = {
         apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
         authDomain: "typing-game-5176f.firebaseapp.com",
@@ -140,15 +150,13 @@
         document.getElementById('trans').innerText = q.japanese;
     }
 
-    // ミスゲージとスタンの処理
+    // ミスゲージとペナルティの更新
     function updateMissStatus(isCorrect) {
-        const bar = document.getElementById('miss-bar');
-        
         if (isCorrect) {
             missCount = Math.max(0, missCount - 1);
         } else {
             missCount++;
-            // ターゲットを赤く光らせる演出
+            // 視覚的なミス演出
             const currentSpan = document.querySelectorAll('#target span')[charIdx];
             if(currentSpan) {
                 currentSpan.classList.add('wrong-char');
@@ -156,8 +164,10 @@
             }
         }
 
+        // ゲージの反映
+        const bar = document.getElementById('miss-bar');
         const percentage = (missCount / MAX_MISS) * 100;
-        bar.style.width = percentage + "%";
+        bar.style.width = Math.min(percentage, 100) + "%";
 
         if (missCount >= MAX_MISS) {
             triggerPenalty();
@@ -166,14 +176,27 @@
 
     function triggerPenalty() {
         isStunned = true;
-        document.getElementById('game-view').classList.add('stunned-effect');
+        const gameView = document.getElementById('game-view');
+        const stunMsg = document.getElementById('stun-message');
+        const stunTimerDisp = document.getElementById('stun-timer');
         
-        setTimeout(() => {
-            isStunned = false;
-            missCount = 0;
-            document.getElementById('miss-bar').style.width = "0%";
-            document.getElementById('game-view').classList.remove('stunned-effect');
-        }, 2000);
+        gameView.classList.add('stunned-effect');
+        stunMsg.style.display = 'block';
+
+        let remaining = 2.0;
+        const countdown = setInterval(() => {
+            remaining -= 0.1;
+            stunTimerDisp.innerText = remaining.toFixed(1);
+            if (remaining <= 0) {
+                clearInterval(countdown);
+                isStunned = false;
+                missCount = 0;
+                document.getElementById('miss-bar').style.width = "0%";
+                gameView.classList.remove('stunned-effect');
+                stunMsg.style.display = 'none';
+                stunTimerDisp.innerText = "2.0";
+            }
+        }, 100);
     }
 
     function finishGame() {
