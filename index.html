@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=1280">
-    <title>English Typing Battle v1.03</title>
+    <meta name="viewport" content="width=1280, user-scalable=no">
+    <title>English Typing Battle</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -21,7 +21,7 @@
         .btn-pvp { background: var(--primary); color: #000; }
         .btn-solo { background: #444; color: #fff; }
         .btn-cancel { background: var(--error); color: #fff; display: none; }
-        .btn-back { background: transparent; color: #888; border: 1px solid #444; margin-top: 15px; width: 200px; height: 40px; }
+        .btn-back { background: transparent; color: #888; border: 1px solid #444; margin-top: 15px; width: 200px; }
 
         #ranking-area { display: flex; width: 900px; gap: 15px; justify-content: center; padding-bottom: 40px; }
         .ranking-board { flex: 1; background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid #444; min-height: 400px; }
@@ -89,7 +89,7 @@
 </div>
 
 <script>
-    // Firebaseの設定
+    // Firebase設定
     const firebaseConfig = {
         apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
         authDomain: "typing-game-5176f.firebaseapp.com",
