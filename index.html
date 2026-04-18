@@ -2,180 +2,181 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Typing Battle</title>
+    <title>AI Typing Battle Pro</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
-        body { 
-            background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            height: 100vh; margin: 0; overflow: hidden; transition: 0.3s;
-        }
-        /* スモーク（お邪魔）演出 */
+        body { background: #0d0d0d; color: #eee; font-family: 'Consolas', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         .smoked { filter: blur(8px); }
-        
-        #game-container { text-align: center; width: 90%; max-width: 800px; position: relative; }
-        
-        #timer { font-size: 3rem; color: #ff5252; margin-bottom: 10px; font-weight: bold; }
-        #target { font-size: 2.4rem; min-height: 4rem; line-height: 1.4; margin-bottom: 20px; }
-        .correct { color: #ffffff; }
+        #game-container { text-align: center; width: 90%; max-width: 800px; }
+        #timer { font-size: 3rem; color: #ff5252; font-weight: bold; }
+        #target { font-size: 2.2rem; min-height: 4rem; margin: 20px 0; }
         .current { border-bottom: 3px solid #00e676; }
+        .correct { color: #555; }
         .wrong { background: #ff5252; color: #fff; }
-
-        /* スコアエリア */
-        #score-board { display: flex; justify-content: space-between; width: 100%; margin-bottom: 20px; font-size: 1.2rem; }
-        .score-box { padding: 10px 20px; border-radius: 8px; background: #1e1e1e; border: 1px solid #333; }
-        #my-score-box { border-color: #00e676; }
-        #opp-score-box { border-color: #ff5252; }
-        .boost-active { color: #ffd700; text-shadow: 0 0 10px #ffd700; font-weight: bold; }
-
-        /* 終了後統計 */
-        #result-overlay { 
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: center; z-index: 100;
-        }
-        .stat-row { display: flex; align-items: center; margin: 10px 0; width: 300px; }
-        .stat-bar { height: 20px; background: #00e676; margin-left: 10px; transition: 1s; width: 0; }
-
-        #trans { color: #00e676; font-size: 1.2rem; margin-top: 10px; }
+        #score-board { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .score-box { padding: 10px; border: 1px solid #333; border-radius: 5px; min-width: 150px; }
+        #status-msg { font-size: 1.5rem; color: #ffd700; margin: 20px; }
+        #result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        .win { color: #00e676; font-size: 5rem; }
+        .lose { color: #ff5252; font-size: 5rem; }
+        #ranking-list { margin-top: 20px; text-align: left; background: #222; padding: 15px; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <div id="timer">60</div>
+<div id="game-container">
+    <div id="room-info">Room: <span id="display-room-id"></span></div>
+    <div id="timer">60</div>
+    <div id="status-msg">Waiting for opponent...</div>
+    
+    <div id="score-board">
+        <div class="score-box">YOU: <span id="my-score">0</span></div>
+        <div class="score-box">OPPONENT: <span id="opp-score">0</span></div>
+    </div>
+
+    <div id="target">Matching...</div>
+    <div id="trans" style="color:#00e676"></div>
+</div>
+
+<div id="result-overlay">
+    <div id="win-lose-label"></div>
+    <div id="final-stats"></div>
+    <div id="ranking-list">
+        <strong>🏆 World Ranking</strong>
+        <div id="rank-items"></div>
+    </div>
+    <button onclick="location.reload()" style="margin-top:20px; padding:10px;">Play Again</button>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
+        authDomain: "typing-game-5176f.firebaseapp.com",
+        projectId: "typing-game-5176f",
+        databaseURL: "https://typing-game-5176f-default-rtdb.firebaseio.com/", // 修正
+        storageBucket: "typing-game-5176f.firebasestorage.app",
+        messagingSenderId: "20880910771",
+        appId: "1:20880910771:web:cf97c58cb713d5869943c6"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // URLパラメータからルームID取得
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomId = urlParams.get('room') || 'lobby';
+    document.getElementById('display-room-id').innerText = roomId;
+
+    const myId = "user_" + Math.floor(Math.random() * 1000);
+    let oppId = null;
+    let questions = [], qIdx = 0, charIdx = 0, score = 0, gameStarted = false, isReady = false;
+
+    // 初期化
+    async function init() {
+        const res = await fetch('questions.json?v=' + Date.now());
+        questions = (await res.json()).sort(() => Math.random() - 0.5);
         
-        <div id="score-board">
-            <div id="my-score-box" class="score-box">YOU: <span id="my-score">0</span> pts</div>
-            <div id="opp-score-box" class="score-box">OPPONENT: <span id="opp-score">0</span> pts</div>
-        </div>
+        // 自分の参加登録
+        db.ref(`rooms/${roomId}/players/${myId}`).set({ score: 0, ready: false });
+        db.ref(`rooms/${roomId}/players/${myId}`).onDisconnect().remove();
 
-        <div id="target">Press Any Key to Start!</div>
-        <div id="trans"></div>
-    </div>
-
-    <div id="result-overlay">
-        <h1>GAME OVER</h1>
-        <div id="stats-container"></div>
-        <button onclick="location.reload()" style="margin-top:30px; padding:10px 20px; cursor:pointer;">REMATCH</button>
-    </div>
-
-    <script>
-        // --- Firebase Config (sasaki's settings) ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
-            authDomain: "typing-game-5176f.firebaseapp.com",
-            projectId: "typing-game-5176f",
-            storageBucket: "typing-game-5176f.firebasestorage.app",
-            messagingSenderId: "20880910771",
-            appId: "1:20880910771:web:cf97c58cb713d5869943c6",
-            measurementId: "G-247PC6SEKX"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        const roomId = "default_room"; // 簡易のため固定ルーム
-        const myId = "user_" + Math.floor(Math.random() * 1000);
-        const oppId = (myId === "user_1") ? "user_2" : "user_1"; // 簡易的な対戦相手判別
-
-        // --- Game Variables ---
-        let questions = [];
-        let qIdx = 0, charIdx = 0, score = 0, misses = 0, totalTyped = 0;
-        let timeLeft = 60;
-        let gameStarted = false;
-        let isBoost = false;
-
-        const targetEl = document.getElementById('target');
-        const timerEl = document.getElementById('timer');
-        const myScoreEl = document.getElementById('my-score');
-        const oppScoreEl = document.getElementById('opp-score');
-
-        // 問題の読み込み
-        async function loadQuestions() {
-            const res = await fetch('questions.json?v=' + Date.now());
-            questions = (await res.json()).sort(() => Math.random() - 0.5);
-        }
-
-        function startTimer() {
-            const interval = setInterval(() => {
-                timeLeft--;
-                timerEl.innerText = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(interval);
-                    endGame();
-                }
-            }, 1000);
-        }
-
-        function render() {
-            const q = questions[qIdx];
-            targetEl.innerHTML = q.english.split('').map((c, i) => 
-                `<span class="${i === charIdx ? 'current' : (i < charIdx ? 'correct' : '')}">${c}</span>`).join('');
-            document.getElementById('trans').innerText = q.japanese;
-        }
-
-        function endGame() {
-            gameStarted = false;
-            document.getElementById('result-overlay').style.display = 'flex';
-            const acc = Math.floor((totalTyped / (totalTyped + misses)) * 100) || 0;
+        // 相手の監視
+        db.ref(`rooms/${roomId}/players`).on('value', snap => {
+            const players = snap.val() || {};
+            const ids = Object.keys(players);
+            oppId = ids.find(id => id !== myId);
             
-            document.getElementById('stats-container').innerHTML = `
-                <div class="stat-row">Speed (KPM): ${totalTyped} <div class="stat-bar" style="width:${totalTyped/5}px"></div></div>
-                <div class="stat-row">Accuracy: ${acc}% <div class="stat-bar" style="width:${acc * 2}px; background:#ffd700"></div></div>
-                <div class="stat-row">Score: ${score} pts</div>
-            `;
-        }
-
-        // Firebase同期
-        function syncScore() {
-            db.ref(`rooms/${roomId}/${myId}`).set({ score: score });
-        }
-
-        db.ref(`rooms/${roomId}`).on('value', (snapshot) => {
-            const data = snapshot.val();
-            for (let id in data) {
-                if (id !== myId) {
-                    const oppScore = data[id].score;
-                    oppScoreEl.innerText = oppScore;
-                    
-                    // お邪魔・ブーストロジック
-                    const diff = score - oppScore;
-                    document.body.classList.toggle('smoked', diff < -50); // 50点負けてたら画面がボヤける
-                    isBoost = (diff < -30); // 30点負けてたらブースト
-                    document.getElementById('my-score-box').classList.toggle('boost-active', isBoost);
+            if (oppId) {
+                document.getElementById('opp-score').innerText = players[oppId].score;
+                if (!gameStarted) {
+                    document.getElementById('status-msg').innerText = "Press Any Key to Ready!";
+                    document.getElementById('target').innerText = "READY?";
+                }
+                
+                // 両者Readyならスタート
+                if (players[myId].ready && players[oppId].ready && !gameStarted) {
+                    startGame();
                 }
             }
         });
+    }
 
-        window.addEventListener('keydown', e => {
-            if (!gameStarted && timeLeft === 60) {
-                gameStarted = true;
-                startTimer();
-                render();
-                return;
+    function startGame() {
+        gameStarted = true;
+        document.getElementById('status-msg').innerText = "GO!";
+        render();
+        let timeLeft = 60;
+        const interval = setInterval(() => {
+            timeLeft--;
+            document.getElementById('timer').innerText = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(interval);
+                finishGame();
             }
-            if (!gameStarted || e.key.length !== 1) return;
+        }, 1000);
+    }
 
-            const q = questions[qIdx];
-            if (e.key === q.english[charIdx]) {
-                charIdx++;
-                score += isBoost ? 2 : 1;
-                totalTyped++;
-                if (charIdx >= q.english.length) {
-                    qIdx = (qIdx + 1) % questions.length;
-                    charIdx = 0;
-                }
-                render();
-                myScoreEl.innerText = score;
-                syncScore();
-            } else {
-                misses++;
-                targetEl.querySelectorAll('span')[charIdx].classList.add('wrong');
-                setTimeout(() => render(), 100);
-            }
+    function render() {
+        const q = questions[qIdx];
+        document.getElementById('target').innerHTML = q.english.split('').map((c, i) => 
+            `<span class="${i === charIdx ? 'current' : (i < charIdx ? 'correct' : '')}">${c}</span>`).join('');
+        document.getElementById('trans').innerText = q.japanese;
+    }
+
+    function finishGame() {
+        gameStarted = false;
+        db.ref(`rooms/${roomId}/players/${oppId}/score`).once('value', snap => {
+            const oppScore = snap.val() || 0;
+            const label = document.getElementById('win-lose-label');
+            if (score > oppScore) { label.innerText = "YOU WIN!"; label.className = "win"; }
+            else if (score < oppScore) { label.innerText = "YOU LOSE..."; label.className = "lose"; }
+            else { label.innerText = "DRAW"; }
+            
+            document.getElementById('result-overlay').style.display = 'flex';
+            
+            // ランキング登録
+            db.ref('ranking').push({ id: myId, score: score });
+            showRanking();
         });
+    }
 
-        loadQuestions();
-    </script>
+    function showRanking() {
+        db.ref('ranking').orderByChild('score').limitToLast(5).once('value', snap => {
+            let html = "";
+            const ranks = [];
+            snap.forEach(child => { ranks.unshift(child.val()); });
+            ranks.forEach((r, i) => {
+                html += `<div>${i+1}. ${r.id}: ${r.score}pts</div>`;
+            });
+            document.getElementById('rank-items').innerHTML = html;
+        });
+    }
+
+    window.addEventListener('keydown', e => {
+        if (e.key.length !== 1) return;
+        
+        if (!isReady && oppId) {
+            isReady = true;
+            db.ref(`rooms/${roomId}/players/${myId}/ready`).set(true);
+            document.getElementById('status-msg').innerText = "Ready! Waiting for opponent...";
+            return;
+        }
+
+        if (!gameStarted) return;
+
+        const q = questions[qIdx];
+        if (e.key === q.english[charIdx]) {
+            charIdx++;
+            score++;
+            if (charIdx >= q.english.length) { qIdx++; charIdx = 0; }
+            render();
+            document.getElementById('my-score').innerText = score;
+            db.ref(`rooms/${roomId}/players/${myId}/score`).set(score);
+        }
+    });
+
+    init();
+</script>
 </body>
 </html>
