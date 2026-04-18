@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=1280">
-    <title>Typing Battle</title>
+    <title>Typing Battle - Pro</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -120,7 +120,10 @@
         try {
             const res = await fetch('questions.json?v=' + Date.now());
             questions = await res.json();
-        } catch(e) { console.error("Data Load Error"); }
+        } catch(e) { 
+            // 予備データ
+            questions = [{english:"hello world", japanese:"こんにちは"}, {english:"typing game", japanese:"タイピングゲーム"}];
+        }
     }
 
     function updateRanking() {
@@ -186,26 +189,36 @@
             roomId = "custom_" + customId;
             handleMatching(roomId);
         } else {
-            // 野良マッチング修正: transactionを使用して確実に空き部屋に入る
-            db.ref('waiting_room').transaction(cur => {
-                if (cur && cur.name !== myName) return null; // 他人がいるなら自分はp2へ
-                return { id: "room_" + Date.now(), name: myName, rate: myRate };
-            }, (err, committed, snap) => {
-                if (committed && snap.val() && snap.val().name === myName) {
-                    roomId = snap.val().id;
+            // 野良マッチング: Transactionを使用してアトミックに待機室を操作
+            const waitRef = db.ref('waiting_room');
+            waitRef.transaction(current => {
+                if (current === null) {
+                    // 待機者がいないので自分が登録
+                    return { id: "room_" + Date.now(), name: myName, rate: myRate };
+                } else {
+                    // すでに待機者がいるので何もしない（transactionの結果として今の値を取得）
+                    return undefined;
+                }
+            }, (error, committed, snapshot) => {
+                if (error) {
+                    cancelMatching();
+                } else if (committed) {
+                    // 自分が待機者(P1)になった
+                    const data = snapshot.val();
+                    roomId = data.id;
                     pKey = "p1";
                     db.ref(`rooms/${roomId}/p1`).set({ name: myName, score: 0, rate: myRate, ready: false });
+                    // P2が来るのを監視
                     db.ref(`rooms/${roomId}/p2`).on('value', s => { if(s.exists()) setupMatchUI(); });
                 } else {
-                    db.ref('waiting_room').once('value', s => {
-                        const waitData = s.val();
-                        if(!waitData) { cancelMatching(); return; }
-                        roomId = waitData.id;
-                        pKey = "p2";
-                        db.ref(`rooms/${roomId}/p2`).set({ name: myName, score: 0, rate: myRate, ready: false });
-                        db.ref('waiting_room').remove(); 
-                        setupMatchUI();
-                    });
+                    // すでに誰かいたので自分はP2として入室
+                    const waitData = snapshot.val();
+                    roomId = waitData.id;
+                    pKey = "p2";
+                    db.ref(`rooms/${roomId}/p2`).set({ name: myName, score: 0, rate: myRate, ready: false });
+                    // 待機室を空にする
+                    waitRef.remove();
+                    setupMatchUI();
                 }
             });
         }
@@ -256,8 +269,8 @@
             if(d){
                 document.getElementById('opp-name').innerText = d.name;
                 document.getElementById('opp-score').innerText = d.score;
-                // 相手がReadyになったら自分側の表示も変えるなどの拡張可
             } else {
+                // 相手が消えたらロビーへ
                 backToLobby();
             }
         });
@@ -317,13 +330,13 @@
     }
 
     function handleInput(key) {
+        const isVisible = document.getElementById('game-view').style.display === 'block';
         if (!gameStarted) {
-            const isVisible = document.getElementById('game-view').style.display === 'block';
             if(mode === "solo" && isVisible) { startGame(); }
             else if(mode === "pvp" && isVisible) { setReady(); }
             return;
         }
-        if (isStunned || key.length !== 1) return;
+        if (isStunned || key.length !== 1 || !isVisible) return;
 
         const q = questions[qIdx];
         if (key === q.english[charIdx]) {
@@ -365,6 +378,7 @@
     function finishGame() {
         if(gameTimer) clearInterval(gameTimer);
         gameStarted = false;
+        // WPM = (打鍵数/5) / (秒/60)
         const finalWPM = parseFloat(((score / 5) / (TIME_LIMIT / 60)).toFixed(1));
 
         if (mode === "pvp") {
@@ -386,8 +400,8 @@
                     let change = 0;
                     if (myS > oppS) { 
                         change = base - (diff * 2); 
-                        myRate += change; 
-                        resTxt += ` (+${change})`; 
+                        myRate += Math.max(1, change); 
+                        resTxt += ` (+${Math.max(1, change)})`; 
                     } else if (myS < oppS) { 
                         change = base + (diff * 2); 
                         myRate = Math.max(0, myRate - change); 
