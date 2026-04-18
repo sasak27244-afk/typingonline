@@ -84,7 +84,7 @@
     <div id="target">Ready...</div>
     <div id="trans"></div>
     <div style="font-size: 1.8rem; font-weight: bold;">SCORE: <span id="my-score">0</span></div>
-    <button id="solo-back-btn" class="btn btn-back" onclick="location.reload()" style="display:none;">BACK TO LOBBY</button>
+    <button id="solo-back-btn" class="btn btn-back" onclick="backToLobby()" style="display:none;">BACK TO LOBBY</button>
 </div>
 
 <div id="stun-overlay">
@@ -113,12 +113,15 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    let myName = "", mode = "solo", myRate = 1000, roomId = null, pKey = "p1", questions = [];
+    let myName = "", mode = "solo", myRate = 0, roomId = null, pKey = "p1", questions = [];
     let qIdx = 0, charIdx = 0, score = 0, gameStarted = false, isStunned = false, missCount = 0, gameTimer = null;
     const TIME_LIMIT = 60;
 
     window.onload = () => {
-        myRate = parseInt(localStorage.getItem('typing_rate')) || 1000;
+        // 初期レートを0に設定
+        myRate = parseInt(localStorage.getItem('typing_rate'));
+        if (isNaN(myRate)) myRate = 0; 
+        
         document.getElementById('my-rate-val').innerText = myRate;
         document.getElementById('player-name').value = localStorage.getItem('typing_name') || "";
         loadData();
@@ -158,6 +161,21 @@
         document.getElementById('game-view').style.display = 'block';
         document.getElementById('solo-back-btn').style.display = 'inline-block';
         document.getElementById('target').innerText = "Press Any Key to START";
+    }
+
+    function backToLobby() {
+        // ゲーム状態のリセット
+        clearInterval(gameTimer);
+        gameStarted = false;
+        score = 0;
+        missCount = 0;
+        document.getElementById('my-score').innerText = "0";
+        document.getElementById('timer').innerText = "60";
+        document.getElementById('lobby').style.display = 'flex';
+        document.getElementById('game-view').style.display = 'none';
+        document.getElementById('btn-solo-start').disabled = false;
+        document.getElementById('btn-pvp-start').innerText = "1v1 ONLINE";
+        document.getElementById('match-status').innerText = "";
     }
 
     function initPvP() {
@@ -289,7 +307,6 @@
 
     function finishGame() {
         gameStarted = false;
-        // WPM算出: (合計打鍵数 / 5) / (経過時間(秒) / 60)
         const wpm = (score / 5) / (TIME_LIMIT / 60);
         const finalWPM = parseFloat(wpm.toFixed(1));
 
@@ -299,7 +316,7 @@
                 const d = s.val();
                 if(!d || !d[oppKey]) return;
                 const myS = d[pKey].score, oppS = d[oppKey].score;
-                const oppRate = d[oppKey].rate || 1000;
+                const oppRate = d[oppKey].rate || 0;
 
                 let base = 30;
                 let adj = Math.floor((myRate - oppRate) / 100) * 2;
@@ -328,9 +345,7 @@
     }
 
     window.addEventListener('keydown', e => {
-        // 入力欄にフォーカスがある時はゲーム入力を無視
         if (e.target.tagName === 'INPUT') return;
-        // IME入力を無視
         if (e.key === 'Process' || e.key === '229') return; 
         handleInput(e.key);
     });
