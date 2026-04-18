@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=1280">
-    <title>English Typing Battle v1.01</title>
+    <title>English Typing Battle</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -21,7 +21,7 @@
         .btn-pvp { background: var(--primary); color: #000; }
         .btn-solo { background: #444; color: #fff; }
         .btn-cancel { background: var(--error); color: #fff; display: none; }
-        .btn-back { background: transparent; color: #888; border: 1px solid #444; margin-top: 15px; width: 200px; }
+        .btn-back { background: transparent; color: #888; border: 1px solid #444; margin-top: 15px; width: 200px; height: 40px; }
 
         #ranking-area { display: flex; width: 900px; gap: 15px; justify-content: center; padding-bottom: 40px; }
         .ranking-board { flex: 1; background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid #444; min-height: 400px; }
@@ -89,6 +89,7 @@
 </div>
 
 <script>
+    // Firebaseの設定
     const firebaseConfig = {
         apiKey: "AIzaSyBAWRI-BVjVNIv3oeE28xpJCVOkKubDPYU",
         authDomain: "typing-game-5176f.firebaseapp.com",
@@ -225,12 +226,10 @@
                     document.getElementById('opp-name').innerText = d.name;
                     document.getElementById('opp-score').innerText = d.score;
                 } else if(!gameStarted) {
-                    // 相手が退出した場合
                     backToLobby();
                 }
             });
 
-            // 10秒放置タイムアウト
             readyTimeout = setTimeout(() => {
                 if(!isReady) backToLobby();
             }, 10000);
@@ -391,7 +390,6 @@
     }
 
     function cancelMatching() {
-        // waiting_room から自分を削除
         db.ref('waiting_room').once('value', s => {
             if(s.exists() && s.val().name === myName) db.ref('waiting_room').remove();
         });
