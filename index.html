@@ -158,7 +158,7 @@
         
         if(roomId) {
             db.ref(`rooms/${roomId}`).off();
-            db.ref(`rooms/${roomId}`).remove(); // 退出時に部屋を消す（相手側も検知可能）
+            db.ref(`rooms/${roomId}`).remove();
         }
         
         document.getElementById('my-score').innerText = "0";
@@ -186,26 +186,24 @@
             roomId = "custom_" + customId;
             handleMatching(roomId);
         } else {
-            // 野良マッチング: waiting_roomを使ってマッチング
+            // 野良マッチング修正: transactionを使用して確実に空き部屋に入る
             db.ref('waiting_room').transaction(cur => {
-                if (cur) return null; // 誰かが待っているなら、自分は参加者(p2)になる
+                if (cur && cur.name !== myName) return null; // 他人がいるなら自分はp2へ
                 return { id: "room_" + Date.now(), name: myName, rate: myRate };
             }, (err, committed, snap) => {
                 if (committed && snap.val() && snap.val().name === myName) {
-                    // 自分がホスト(p1)
                     roomId = snap.val().id;
                     pKey = "p1";
                     db.ref(`rooms/${roomId}/p1`).set({ name: myName, score: 0, rate: myRate, ready: false });
                     db.ref(`rooms/${roomId}/p2`).on('value', s => { if(s.exists()) setupMatchUI(); });
                 } else {
-                    // 誰かが待っていたので、自分はゲスト(p2)
                     db.ref('waiting_room').once('value', s => {
                         const waitData = s.val();
                         if(!waitData) { cancelMatching(); return; }
                         roomId = waitData.id;
                         pKey = "p2";
                         db.ref(`rooms/${roomId}/p2`).set({ name: myName, score: 0, rate: myRate, ready: false });
-                        db.ref('waiting_room').remove(); // 部屋が埋まったので待機室から消去
+                        db.ref('waiting_room').remove(); 
                         setupMatchUI();
                     });
                 }
@@ -258,13 +256,14 @@
             if(d){
                 document.getElementById('opp-name').innerText = d.name;
                 document.getElementById('opp-score').innerText = d.score;
+                // 相手がReadyになったら自分側の表示も変えるなどの拡張可
             } else {
-                // 相手が消えた（戻った）場合
                 backToLobby();
             }
         });
 
         isReady = false;
+        // 10秒放置タイムアウト
         readyTimeout = setTimeout(() => {
             if(!isReady) backToLobby();
         }, 10000);
@@ -319,8 +318,9 @@
 
     function handleInput(key) {
         if (!gameStarted) {
-            if(mode === "solo" && document.getElementById('game-view').style.display === 'block') { startGame(); }
-            else if(mode === "pvp" && document.getElementById('game-view').style.display === 'block') { setReady(); }
+            const isVisible = document.getElementById('game-view').style.display === 'block';
+            if(mode === "solo" && isVisible) { startGame(); }
+            else if(mode === "pvp" && isVisible) { setReady(); }
             return;
         }
         if (isStunned || key.length !== 1) return;
@@ -365,7 +365,6 @@
     function finishGame() {
         if(gameTimer) clearInterval(gameTimer);
         gameStarted = false;
-        // WPM = (正解数 / 5) / (秒 / 60)
         const finalWPM = parseFloat(((score / 5) / (TIME_LIMIT / 60)).toFixed(1));
 
         if (mode === "pvp") {
@@ -397,7 +396,7 @@
                     db.ref(`rate_ranking/${myName}`).set(myRate);
                     localStorage.setItem('typing_rate', myRate);
                 } else {
-                    resTxt += " (Rate Unchanged)";
+                    resTxt += " (Practice Mode)";
                 }
 
                 document.getElementById('res-title').innerText = resTxt;
